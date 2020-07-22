@@ -8,6 +8,10 @@ from pybatfish.datamodel.flow import *
 from pybatfish.question import *
 from pybatfish.question import bfq
 
+import networkx as nx
+import matplotlib.pyplot as plt
+import os, errno
+
 def main(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH):
     run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH)
 
@@ -22,9 +26,7 @@ def run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH):
 
     load_questions()
 
-    print(list_questions())
-
-    # vxlanEdges, layer3Edges
+    #print(list_questions())
 
     pd.options.display.max_columns = 6
 
@@ -36,7 +38,7 @@ def run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH):
 
     print("----------------------")
 
-    parse_warning = pd.DataFrame(bfq.parseWarning().answer().frame())
+    parse_warning = bfq.parseWarning().answer().frame()
 
     print("----------------------")
 
@@ -44,16 +46,253 @@ def run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH):
 
     print("----------------------")
 
+    # vxlanEdges,layer3Edges
     node_properties_trunc = bfq.nodeProperties(properties="Device_Type,Interfaces").answer().frame()
 
     print(node_properties_trunc)
 
+    print("layer1Edges")
+    print("----------------------")
+    print(bfq.layer1Edges().answer().frame())
+    print("LAYER3_EDGES")
+    print("----------------------")
+    print(bfq.layer3Edges().answer().frame())
+    print("----------------------")
 
+    print(bfq.undefinedReferences().answer().frame())
+
+    # Get edges of type layer 3 (IP layer)
+    print(bfq.edges(edgeType="layer3").answer().frame())
+
+    # to get interface info...
+    # bfq.interfaceProperties().answer().frame()
+    # Q: But what's on the other side??
+
+    # TODO: automatically constuct layered topological view of the network
+
+    # Config files -> batfish -> (our parser) -> GNS3 emulation
+    # first, let's get the networkx graph
+    G = nx.Graph()
+    G_layer_2 = nx.Graph()
+    G_layer_3 = nx.Graph()
+
+    # TODO: add devices:
+    device_dataframe = bfq.nodeProperties().answer().frame()
+    color_map = []
+
+    for device in device_dataframe.iterrows():
+        device_name = device[1]['Node']
+        device_type = device[1]['Device_Type']
+        print(device_name, device_type)
+        G.add_node(device_name, type =  device_type)
+        color_map.append('red')
+        G_layer_2.add_node(device_name, type = device_type)
+        G_layer_3.add_node(device_name, type = device_type)
+
+
+    edge_dataframe = bfq.edges().answer().frame()
+    edge_interfaces = set()
+    for edge in edge_dataframe.iterrows():
+        local_interface = edge[1]['Interface']
+        local_device = local_interface.hostname
+        local_vlan = local_interface.interface
+        G.add_node(local_interface, type='interface')
+        color_map.append('green')
+        G.add_edge(local_device, local_interface)
+        local_ip, remote_ip = list(edge[1]['IPs']), list(edge[1]["Remote_IPs"])
+
+        remote_interface = edge[1]['Remote_Interface']
+        remote_device = remote_interface.hostname
+        remote_vlan = remote_interface.interface
+        print("lr", local_interface, remote_interface)
+        G.add_node(remote_interface, type='interface')
+        color_map.append('green')
+        G.add_edge(remote_device, remote_interface)
+
+        edge_interfaces.add(local_interface)
+        edge_interfaces.add(remote_interface)
+
+        if local_vlan != remote_vlan:
+            exit('why does local_vlan not equal remote_vlan!?!')
+
+        G.add_edge(local_interface, remote_interface)
+        if local_ip is not None and remote_ip is not None:
+            # the problem with this is that it doesn't make the type of diagrams that I am looking for
+            #G_layer_3.add_edge(local_device, remote_device)
+            pass
+        #G_layer_2.add_edge(local_device, remote_device)
+
+
+    edges_layer1_dataframe = bfq.layer1Edges().answer().frame()
+    for interface_row in edges_layer1_dataframe.iterrows():
+        whole_interface = interface_row[1]['Interface']
+        hostname = whole_interface.hostname
+        interface = whole_interface.interface
+
+        description = interface_row[1]['Description']
+        native_vlan =  interface_row[1]['Native_VLAN']
+
+        G_layer_2.add_edge(hostname, description, vlan=native_vlan)
+
+    interface_dataframe = bfq.interfaceProperties().answer().frame()
+    for counter, interface_row in enumerate(interface_dataframe.iterrows()):
+
+        whole_interface = interface_row[1]['Interface']
+        hostname = whole_interface.hostname
+        interface = whole_interface.interface
+
+        description = interface_row[1]['Description']
+        native_vlan =  interface_row[1]['Native_VLAN']
+        access_vlan =  interface_row[1]['Access_VLAN']
+        allowed_vlans =  interface_row[1]['Allowed_VLANs']
+
+        G.add_node(whole_interface, type='interface', description=description)
+        color_map.append('green')
+        G.add_edge(hostname, whole_interface)
+
+        if interface_row[1]['Primary_Address'] is None:
+            if description is None or len(description) == 0:
+                pass
+            else:
+                # In the Cisco world, links to other switches are known as “Trunk” ports and links to end devices like PCs are known as “Access” ports.
+                # On a port, which is an Access Port, the Untagged VLAN is called the Access VLAN
+                # On a port, which is a Trunk Port, the Untagged VLAN is called the Native VLAN.
+                if access_vlan is None:
+                    G_layer_2.add_edge(hostname, description)
+                else:
+                    G_layer_2.add_edge(hostname, description, access_vlan=access_vlan)
+        else:
+            primary_address = interface_row[1]['Primary_Address']
+            G_layer_3.add_edge(hostname, interface, ip_address=primary_address)
+
+    # TODO: add the other interfaces that are not directly included
+    # and then make a nice visualization and then maybe try to make
+    # a layered view or something like that?
+
+    plt.figure(3, figsize=(12, 12))
+    plt.title('devices (red) & interfaces (green)')
+    nx.draw(G, node_color=color_map, with_labels=True)
+    #labels = nx.draw_networkx_labels(G, pos=nx.spring_layout(G))
+    plt.draw()
+    plt.show()
+
+    plt.figure(4, figsize=(12, 12))
+    plt.title('layer_2_connectivity')
+    edge_labels = nx.get_edge_attributes(G_layer_2, 'access_vlan')
+    pos= nx.spring_layout(G_layer_2)
+    nx.draw(G_layer_2, pos=pos, node_color=color_map, with_labels=True, font_size=16) #, edge_labels = edge_labels)
+    nx.draw_networkx_edge_labels(G_layer_2, pos, edge_labels=edge_labels)
+    #labels = nx.draw_networkx_labels(G, pos=nx.spring_layout(G))
+    plt.draw()
+    plt.show()
+
+    try:
+        os.makedirs("./outputs/" + NETWORK_NAME )
+    except OSError as e:
+        if e.errno != errno.EEXIST:
+            raise
+
+    G_layer_2, manually_connected_layer2_nodes = \
+        connect_nodes_via_manual_analysis(G_layer_2, color_map, title='layer_2_connectivity',
+                                          figname="./outputs/" + NETWORK_NAME + "/layer_2_diagram.png" )
+
+
+    plt.figure(5, figsize=(12, 12))
+    plt.title('layer_3_connectivity')
+    edge_labels = nx.get_edge_attributes(G_layer_3, 'access_vlan')
+    pos= nx.spring_layout(G_layer_3)
+    nx.draw(G_layer_3, pos=pos, node_color=color_map, with_labels=True, font_size=16) #, edge_labels = edge_labels)
+    nx.draw_networkx_edge_labels(G_layer_3, pos, edge_labels=edge_labels)
+    #labels = nx.draw_networkx_labels(G, pos=nx.spring_layout(G))
+    plt.draw()
+    plt.show()
+
+    G_layer_3, manually_connected_layer3_nodes = \
+        connect_nodes_via_manual_analysis(G_layer_3, color_map, title='layer_3_connectivity',
+                                          figname="./outputs/" + NETWORK_NAME + "/layer_3_diagram.png")
+
+def connect_nodes_via_manual_analysis(G_layer_2, color_map, title, figname):
+    connected_interfaces_via_manual_analysis = []
+    prompt_for_connected_interfaces = "Please enter one of the connected interfaces (hit enter if none are connected): "
+    while True:
+        print("----------------")
+        print("Are any of these layer2 interfaces connected?")
+        while True:
+            value1 = input(prompt_for_connected_interfaces)
+            if value1 == '':
+                break
+            if value1 in G_layer_2.nodes():
+                break
+            else:
+                print("That node was not recognized. Please check the spelling and try again")
+        if value1 == '':
+            break
+
+        while True:
+            value2 = input(prompt_for_connected_interfaces)
+            if value2 == '':
+                break
+            if value2 in G_layer_2.nodes():
+                break
+            else:
+                print("That node was not recognized. Please check the spelling and try again")
+        if value2 == '':
+            break
+
+        node1 = list(G_layer_2.neighbors(value1))
+        node2 = list(G_layer_2.neighbors(value2))
+        if len(node1) > 1:
+            exit('len node1 is bigger than 1')
+        if len(node2) > 1:
+            exit('len node2 is bigger than 1')
+        G_layer_2.remove_node(value1)
+        G_layer_2.remove_node(value2)
+        G_layer_2.add_edge(node1[0], node2[0])
+        connected_interfaces_via_manual_analysis.append( (value1, value2) )
+        print('New edge added succesfully!')
+
+        plt.figure(4, figsize=(12, 12))
+        plt.title('layer_2_connectivity')
+        edge_labels = nx.get_edge_attributes(G_layer_2, 'access_vlan')
+        pos = nx.spring_layout(G_layer_2)
+        nx.draw(G_layer_2, pos=pos, node_color=color_map, with_labels=True,
+                font_size=16)  # , edge_labels = edge_labels)
+        nx.draw_networkx_edge_labels(G_layer_2, pos, edge_labels=edge_labels)
+        # labels = nx.draw_networkx_labels(G, pos=nx.spring_layout(G))
+        plt.draw()
+        plt.show()
+
+    plt.figure(4, figsize=(12, 12))
+    plt.title(title)
+    edge_labels = nx.get_edge_attributes(G_layer_2, 'access_vlan')
+    pos = nx.spring_layout(G_layer_2)
+    nx.draw(G_layer_2, pos=pos, node_color=color_map, with_labels=True,
+            font_size=16)  # , edge_labels = edge_labels)
+    nx.draw_networkx_edge_labels(G_layer_2, pos, edge_labels=edge_labels)
+    # labels = nx.draw_networkx_labels(G, pos=nx.spring_layout(G))
+    plt.draw()
+
+    plt.savefig(fname= figname)
+
+    return G_layer_2, connected_interfaces_via_manual_analysis
 
 if __name__ == "__main__":
     # Initialize a network and snapshot
+    #'''
+    # IP address conflict (the HotNets example)
     NETWORK_NAME = "example_network"
     SNAPSHOT_NAME = "example_snapshot"
     SNAPSHOT_PATH = "./scenarios/Access port config"
+    #'''
+
+    '''
+    # ???
+    NETWORK_NAME = "example_network_asdm"
+    SNAPSHOT_NAME = "example_snapshot_asdm"
+    SNAPSHOT_PATH = "./scenarios/Cisco ASA 5505 doesn't allow internet connection"
+    #'''
 
     main(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH)
+
+    # note: I can interact with the local GNS3 server (and it's API) using these commands:
+    # curl -i -u 'admin:iSJeYlFLUSwnKDHA9F3jWYLkioJ5Nn6mrEVgCp06VT9kL08bPd4qmTBANfCdoRJZ' http://127.0.0.1:3080/v2/version
