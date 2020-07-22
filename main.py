@@ -122,7 +122,25 @@ def connect_nodes_via_manual_analysis(G_layer_2, color_map, title, figname):
             if value1 in G_layer_2.nodes():
                 break
             else:
-                print("That node was not recognized. Please check the spelling and try again")
+                node_labels_description = nx.get_node_attributes(G_layer_2, 'description')
+                if value1 in node_labels_description.values():
+                    found_node = None
+                    not_unique = False
+                    for node,desc in node_labels_description.items():
+                        if desc == value1:
+                            if found_node is None:
+                                found_node = node
+                            else:
+                                print("That value is not a unique identifier for this graph")
+                                not_unique = True
+                                break
+
+                    if not not_unique and found_node is not None:
+                        print("that node was found, even tho you used the description and not the name!")
+                        value1 = found_node
+                        break
+                else:
+                    print("That node was not recognized. Please check the spelling and try again")
         if value1 == '':
             break
 
@@ -133,7 +151,25 @@ def connect_nodes_via_manual_analysis(G_layer_2, color_map, title, figname):
             if value2 in G_layer_2.nodes():
                 break
             else:
-                print("That node was not recognized. Please check the spelling and try again")
+                node_labels_description = nx.get_node_attributes(G_layer_2, 'description')
+                if value2 in node_labels_description.values():
+                    found_node = None
+                    not_unique = False
+                    for node, desc in node_labels_description.items():
+                        if desc == value2:
+                            if found_node is None:
+                                found_node = node
+                            else:
+                                print("That value is not a unique identifier for this graph")
+                                not_unique = True
+                                break
+
+                    if not not_unique and found_node is not None:
+                        print("that node was found, even tho you used the description and not the name!")
+                        value2 = found_node
+                        break
+                else:
+                    print("That node was not recognized. Please check the spelling and try again")
         if value2 == '':
             break
 
@@ -147,9 +183,9 @@ def connect_nodes_via_manual_analysis(G_layer_2, color_map, title, figname):
         G_layer_2.remove_node(value2)
         G_layer_2.add_edge(node1[0], node2[0])
         connected_interfaces_via_manual_analysis.append( (value1, value2) )
-        print('New edge added succesfully!')
+        print('New edge added succesfully! -- removed ' + str(value1) + " and " + str(value2))
 
-        plot_graph(G_layer_2, color_map, fig_number=4, title=title, show=False)
+        plot_graph(G_layer_2, color_map, fig_number=4, title=title, show=True)
 
     plot_graph(G_layer_2, color_map, fig_number=4, title=title, show=False)
     plt.tight_layout()
@@ -162,9 +198,9 @@ def add_devices_to_graphs(device_dataframe, G, G_layer_2, G_layer_3, color_map):
         device_name = device[1]['Node']
         device_type = device[1]['Device_Type']
         print(device_name, device_type)
-        G.add_node(device_name, type=device_type, name=str(device_name))
-        G_layer_2.add_node(device_name, type=device_type, name=str(device_name))
-        G_layer_3.add_node(device_name, type=device_type, name=str(device_name))
+        G.add_node(str(device_name), type=device_type, name=str(device_name))
+        G_layer_2.add_node(str(device_name), type=device_type, name=str(device_name))
+        G_layer_3.add_node(str(device_name), type=device_type, name=str(device_name))
         color_map.append('red')
 
 def add_edges_to_graphs(edge_dataframe, G, G_layer_2, G_layer_3, color_map, edge_interfaces, edges_layer1_dataframe):
@@ -172,7 +208,7 @@ def add_edges_to_graphs(edge_dataframe, G, G_layer_2, G_layer_3, color_map, edge
         local_interface = edge[1]['Interface']
         local_device = local_interface.hostname
         local_vlan = local_interface.interface
-        G.add_node(local_interface, type='interface', name=str(local_interface))
+        G.add_node(str(local_interface), type='interface', name=str(local_interface))
         color_map.append('green')
         G.add_edge(local_device, local_interface)
         local_ip, remote_ip = list(edge[1]['IPs']), list(edge[1]["Remote_IPs"])
@@ -181,7 +217,7 @@ def add_edges_to_graphs(edge_dataframe, G, G_layer_2, G_layer_3, color_map, edge
         remote_device = remote_interface.hostname
         remote_vlan = remote_interface.interface
         print("lr", local_interface, remote_interface)
-        G.add_node(remote_interface, type='interface', name=str(remote_interface))
+        G.add_node(str(remote_interface), type='interface', name=str(remote_interface))
         color_map.append('green')
         G.add_edge(remote_device, remote_interface)
 
@@ -206,7 +242,7 @@ def add_edges_to_graphs(edge_dataframe, G, G_layer_2, G_layer_3, color_map, edge
         description = interface_row[1]['Description']
         native_vlan =  interface_row[1]['Native_VLAN']
 
-        G_layer_2.add_edge(hostname, whole_interface, vlan=native_vlan)
+        G_layer_2.add_edge(hostname, str(whole_interface), vlan=native_vlan)
 
 def add_interfaces_to_graphs(interface_dataframe, G, G_layer_2, G_layer_3, color_map):
     for counter, interface_row in enumerate(interface_dataframe.iterrows()):
@@ -219,9 +255,9 @@ def add_interfaces_to_graphs(interface_dataframe, G, G_layer_2, G_layer_3, color
         access_vlan = interface_row[1]['Access_VLAN']
         allowed_vlans = interface_row[1]['Allowed_VLANs']
 
-        G.add_node(whole_interface, type='interface', description=description, name=str(whole_interface))
+        G.add_node(str(whole_interface), type='interface', description=description, name=str(whole_interface))
         color_map.append('green')
-        G.add_edge(hostname, whole_interface)
+        G.add_edge(hostname, str(whole_interface))
 
         if interface_row[1]['Primary_Address'] is None:
             if description is None or len(description) == 0:
@@ -231,14 +267,14 @@ def add_interfaces_to_graphs(interface_dataframe, G, G_layer_2, G_layer_3, color
                 # On a port, which is an Access Port, the Untagged VLAN is called the Access VLAN
                 # On a port, which is a Trunk Port, the Untagged VLAN is called the Native VLAN.
                 if access_vlan is None:
-                    G_layer_2.add_node(whole_interface, description=description, name=str(whole_interface))
-                    G_layer_2.add_edge(hostname, whole_interface)
+                    G_layer_2.add_node(str(whole_interface), description=description, name=str(whole_interface))
+                    G_layer_2.add_edge(hostname, str(whole_interface))
                 else:
-                    G_layer_2.add_node(whole_interface, description=description, name=str(whole_interface))
-                    G_layer_2.add_edge(hostname, whole_interface, access_vlan=access_vlan)
+                    G_layer_2.add_node(str(whole_interface), description=description, name=str(whole_interface))
+                    G_layer_2.add_edge(hostname, str(whole_interface), access_vlan=access_vlan)
         else:
             primary_address = interface_row[1]['Primary_Address']
-            G_layer_3.add_node(interface, description=description, name=str(whole_interface))
+            G_layer_3.add_node(str(interface), description=description, name=str(whole_interface))
             G_layer_3.add_edge(hostname, interface, ip_address=primary_address)
 
 def plot_graph(G_layer_2, color_map, fig_number, title, show=True):
@@ -264,7 +300,7 @@ def plot_graph(G_layer_2, color_map, fig_number, title, show=True):
     # adding a textbox: https://matplotlib.org/3.1.1/gallery/recipes/placing_text_boxes.html
     textstr = 'Red: Devices\nGreen:Interfaces'
     props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
-    ax.text(0.05, 0.95, textstr, transform=ax.transAxes, fontsize=14,
+    ax.text(0.02, 0.98, textstr, transform=ax.transAxes, fontsize=14,
             verticalalignment='top', bbox=props)
     ##############
     #labels = nx.draw_networkx_labels(G, pos=nx.spring_layout(G))
