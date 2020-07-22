@@ -90,35 +90,7 @@ def run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH):
     plt.draw()
     plt.show()
 
-    fig = plt.figure(4, figsize=(12, 12))
-    ax = fig.add_subplot(111)
-    #fig, ax = plt.subplots(1)
-    margin = 0.44 #.33
-    fig.subplots_adjust(margin, margin, 1. - margin, 1. - margin)
-    plt.title('layer_2_connectivity')
-    edge_labels = nx.get_edge_attributes(G_layer_2, 'access_vlan')
-    node_labels = nx.get_node_attributes(G_layer_2, 'name')
-    node_labels_description = nx.get_node_attributes(G_layer_2, 'description')
-    for node,desc in node_labels_description.items():
-        node_labels[node] += '\n' + desc
-    num_nodes = G_layer_2.number_of_nodes()
-    weight = 2/math.sqrt(num_nodes)
-    pos= nx.spring_layout(G_layer_2, k = weight)
-    nx.draw(G_layer_2, pos=pos, node_color=color_map, with_labels=True, font_size=0, node_size=1200) #, edge_labels = edge_labels)
-    nx.draw_networkx_edge_labels(G_layer_2, pos, edge_labels=edge_labels)
-    nx.draw_networkx_labels(G_layer_2, pos, labels=node_labels)
-    ###############
-    # adding a textbox: https://matplotlib.org/3.1.1/gallery/recipes/placing_text_boxes.html
-    textstr = 'Red: Devices\nGreen:Interfaces'
-    props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
-    ax.text(0.05, 0.95, textstr, transform=ax.transAxes, fontsize=14,
-            verticalalignment='top', bbox=props)
-    ##############
-    #labels = nx.draw_networkx_labels(G, pos=nx.spring_layout(G))
-    #plt.tight_layout()
-    # now make the subplot size slightly larger...
-    plt.draw()
-    plt.show()
+    plot_graph(G_layer_2, color_map, fig_number=4, title='layer_2_connectivity')
 
     try:
         os.makedirs("./outputs/" + NETWORK_NAME )
@@ -131,17 +103,7 @@ def run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH):
                                           figname="./outputs/" + NETWORK_NAME + "/layer_2_diagram.png" )
 
 
-    plt.figure(5, figsize=(12, 12))
-    plt.title('layer_3_connectivity')
-    edge_labels = nx.get_edge_attributes(G_layer_3, 'access_vlan')
-    node_labels = nx.get_node_attributes(G_layer_3, 'description')
-    pos= nx.spring_layout(G_layer_3)
-    nx.draw(G_layer_3, pos=pos, node_color=color_map, with_labels=True, font_size=16) #, edge_labels = edge_labels)
-    nx.draw_networkx_edge_labels(G_layer_3, pos, edge_labels=edge_labels)
-    nx.draw_networkx_labels(G_layer_2, pos, labels=node_labels)
-    #labels = nx.draw_networkx_labels(G, pos=nx.spring_layout(G))
-    plt.draw()
-    plt.show()
+    plot_graph(G_layer_3, color_map, fig_number=5, title='layer_3_connectivity')
 
     G_layer_3, manually_connected_layer3_nodes = \
         connect_nodes_via_manual_analysis(G_layer_3, color_map, title='layer_3_connectivity',
@@ -187,31 +149,10 @@ def connect_nodes_via_manual_analysis(G_layer_2, color_map, title, figname):
         connected_interfaces_via_manual_analysis.append( (value1, value2) )
         print('New edge added succesfully!')
 
-        plt.figure(4, figsize=(12, 12))
-        plt.title('layer_2_connectivity')
-        edge_labels = nx.get_edge_attributes(G_layer_2, 'access_vlan')
-        node_labels = nx.get_node_attributes(G_layer_2, 'description')
-        pos = nx.spring_layout(G_layer_2)
-        nx.draw(G_layer_2, pos=pos, node_color=color_map, with_labels=True,
-                font_size=16)  # , edge_labels = edge_labels)
-        nx.draw_networkx_edge_labels(G_layer_2, pos, edge_labels=edge_labels)
-        nx.draw_networkx_labels(G_layer_2, pos, labels=node_labels)
-        # labels = nx.draw_networkx_labels(G, pos=nx.spring_layout(G))
-        plt.draw()
-        plt.show()
+        plot_graph(G_layer_2, color_map, fig_number=4, title=title, show=False)
 
-    plt.figure(4, figsize=(12, 12))
-    plt.title(title)
-    edge_labels = nx.get_edge_attributes(G_layer_2, 'access_vlan')
-    node_labels = nx.get_node_attributes(G_layer_2, 'description')
-    pos = nx.spring_layout(G_layer_2)
-    nx.draw(G_layer_2, pos=pos, node_color=color_map, with_labels=True,
-            font_size=16)  # , edge_labels = edge_labels)
-    nx.draw_networkx_edge_labels(G_layer_2, pos, edge_labels=edge_labels)
-    nx.draw_networkx_labels(G_layer_2, pos, labels=node_labels)
-    # labels = nx.draw_networkx_labels(G, pos=nx.spring_layout(G))
-    plt.draw()
-
+    plot_graph(G_layer_2, color_map, fig_number=4, title=title, show=False)
+    plt.tight_layout()
     plt.savefig(fname= figname)
 
     return G_layer_2, connected_interfaces_via_manual_analysis
@@ -299,6 +240,39 @@ def add_interfaces_to_graphs(interface_dataframe, G, G_layer_2, G_layer_3, color
             primary_address = interface_row[1]['Primary_Address']
             G_layer_3.add_node(interface, description=description, name=str(whole_interface))
             G_layer_3.add_edge(hostname, interface, ip_address=primary_address)
+
+def plot_graph(G_layer_2, color_map, fig_number, title, show=True):
+    fig = plt.figure(fig_number, figsize=(12, 12))
+    ax = fig.add_subplot(111)
+    #fig, ax = plt.subplots(1)
+    margin = 0.44 #.33
+    fig.subplots_adjust(margin, margin, 1. - margin, 1. - margin)
+    plt.title(title)
+    edge_labels = nx.get_edge_attributes(G_layer_2, 'access_vlan')
+    node_labels = nx.get_node_attributes(G_layer_2, 'name')
+    node_labels_description = nx.get_node_attributes(G_layer_2, 'description')
+    for node,desc in node_labels_description.items():
+        if desc is not None:
+            node_labels[node] += '\n' + desc
+    num_nodes = G_layer_2.number_of_nodes()
+    weight = 2/math.sqrt(num_nodes)
+    pos= nx.spring_layout(G_layer_2, k = weight)
+    nx.draw(G_layer_2, pos=pos, node_color=color_map, with_labels=True, font_size=0, node_size=1200) #, edge_labels = edge_labels)
+    nx.draw_networkx_edge_labels(G_layer_2, pos, edge_labels=edge_labels)
+    nx.draw_networkx_labels(G_layer_2, pos, labels=node_labels)
+    ###############
+    # adding a textbox: https://matplotlib.org/3.1.1/gallery/recipes/placing_text_boxes.html
+    textstr = 'Red: Devices\nGreen:Interfaces'
+    props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+    ax.text(0.05, 0.95, textstr, transform=ax.transAxes, fontsize=14,
+            verticalalignment='top', bbox=props)
+    ##############
+    #labels = nx.draw_networkx_labels(G, pos=nx.spring_layout(G))
+    #plt.tight_layout()
+    # now make the subplot size slightly larger...
+    plt.draw()
+    if show:
+        plt.show()
 
 if __name__ == "__main__":
     # Initialize a network and snapshot
