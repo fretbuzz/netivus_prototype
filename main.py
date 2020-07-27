@@ -12,6 +12,7 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import os, errno
 import math
+import requests
 
 def main(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH):
     run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH)
@@ -102,45 +103,64 @@ def run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH):
         connect_nodes_via_manual_analysis(G_layer_2, color_map, title='layer_2_connectivity',
                                           figname="./outputs/" + NETWORK_NAME + "/layer_2_diagram.png" )
 
+    ## TODO: ask which interfaces are connected to important devices
+    # (and which devices that these would be)
 
-    plot_graph(G_layer_3, color_map, fig_number=5, title='layer_3_connectivity')
+    ## TODO: hook in a GNS3 interaction module here that can geneate the configs as-needed
+    # (ignore l3 functionality entirely for now).
+
+    plot_graph(G_layer_3, color_map, fig_number=5, title='layer_3_connectivity', layer_2=False)
 
     G_layer_3, manually_connected_layer3_nodes = \
         connect_nodes_via_manual_analysis(G_layer_3, color_map, title='layer_3_connectivity',
-                                          figname="./outputs/" + NETWORK_NAME + "/layer_3_diagram.png")
+                                          figname="./outputs/" + NETWORK_NAME + "/layer_3_diagram.png",
+                                          layer_2=False)
 
-def connect_nodes_via_manual_analysis(G_layer_2, color_map, title, figname):
+    return G_layer_2, G_layer_3
+
+def map_to_node_or_none(value1, G_layer_2):
+    value = None
+    if value1 in G_layer_2.nodes():
+        value = value1
+    else:
+        node_labels_description = nx.get_node_attributes(G_layer_2, 'description')
+        if value1 in node_labels_description.values():
+            found_node = None
+            not_unique = False
+            for node, desc in node_labels_description.items():
+                if desc == value1:
+                    if found_node is None:
+                        found_node = node
+                    else:
+                        print("That value is not a unique identifier for this graph")
+                        not_unique = True
+                        break
+
+            if not not_unique and found_node is not None:
+                print("that node was found, even tho you used the description and not the name!")
+                value = found_node
+        else:
+            print("That node was not recognized. Please check the spelling and try again")
+
+    return value
+
+def connect_nodes_via_manual_analysis(G_layer_2, color_map, title, figname, layer_2=True):
     connected_interfaces_via_manual_analysis = []
+    print("These are the nodes in the graph:")
+    for node in G_layer_2.nodes():
+        print(node)
     prompt_for_connected_interfaces = "Please enter one of the connected interfaces (hit enter if none are connected): "
     while True:
         print("----------------")
-        print("Are any of these layer2 interfaces connected?")
+        print("Are any of these interfaces connected?")
         while True:
             value1 = input(prompt_for_connected_interfaces)
             if value1 == '':
                 break
-            if value1 in G_layer_2.nodes():
+            value1 = map_to_node_or_none(value1, G_layer_2)
+            if value1 != None:
                 break
-            else:
-                node_labels_description = nx.get_node_attributes(G_layer_2, 'description')
-                if value1 in node_labels_description.values():
-                    found_node = None
-                    not_unique = False
-                    for node,desc in node_labels_description.items():
-                        if desc == value1:
-                            if found_node is None:
-                                found_node = node
-                            else:
-                                print("That value is not a unique identifier for this graph")
-                                not_unique = True
-                                break
 
-                    if not not_unique and found_node is not None:
-                        print("that node was found, even tho you used the description and not the name!")
-                        value1 = found_node
-                        break
-                else:
-                    print("That node was not recognized. Please check the spelling and try again")
         if value1 == '':
             break
 
@@ -148,6 +168,12 @@ def connect_nodes_via_manual_analysis(G_layer_2, color_map, title, figname):
             value2 = input(prompt_for_connected_interfaces)
             if value2 == '':
                 break
+            value2 = map_to_node_or_none(value2, G_layer_2)
+
+            if value2 != None:
+                break
+
+            '''
             if value2 in G_layer_2.nodes():
                 break
             else:
@@ -170,6 +196,7 @@ def connect_nodes_via_manual_analysis(G_layer_2, color_map, title, figname):
                         break
                 else:
                     print("That node was not recognized. Please check the spelling and try again")
+            '''
         if value2 == '':
             break
 
@@ -185,9 +212,9 @@ def connect_nodes_via_manual_analysis(G_layer_2, color_map, title, figname):
         connected_interfaces_via_manual_analysis.append( (value1, value2) )
         print('New edge added succesfully! -- removed ' + str(value1) + " and " + str(value2))
 
-        plot_graph(G_layer_2, color_map, fig_number=4, title=title, show=True)
+        plot_graph(G_layer_2, color_map, fig_number=4, title=title, show=True, layer_2=layer_2)
 
-    plot_graph(G_layer_2, color_map, fig_number=4, title=title, show=False)
+    plot_graph(G_layer_2, color_map, fig_number=4, title=title, show=False, layer_2=layer_2)
     plt.tight_layout()
     plt.savefig(fname= figname)
 
@@ -209,7 +236,7 @@ def add_edges_to_graphs(edge_dataframe, G, G_layer_2, G_layer_3, color_map, edge
         local_device = local_interface.hostname
         local_vlan = local_interface.interface
         G.add_node(str(local_interface), type='interface', name=str(local_interface))
-        color_map.append('green')
+        color_map.append('lightgreen')
         G.add_edge(local_device, local_interface)
         local_ip, remote_ip = list(edge[1]['IPs']), list(edge[1]["Remote_IPs"])
 
@@ -218,7 +245,7 @@ def add_edges_to_graphs(edge_dataframe, G, G_layer_2, G_layer_3, color_map, edge
         remote_vlan = remote_interface.interface
         print("lr", local_interface, remote_interface)
         G.add_node(str(remote_interface), type='interface', name=str(remote_interface))
-        color_map.append('green')
+        color_map.append('lightgreen')
         G.add_edge(remote_device, remote_interface)
 
         edge_interfaces.add(local_interface)
@@ -256,35 +283,39 @@ def add_interfaces_to_graphs(interface_dataframe, G, G_layer_2, G_layer_3, color
         allowed_vlans = interface_row[1]['Allowed_VLANs']
 
         G.add_node(str(whole_interface), type='interface', description=description, name=str(whole_interface))
-        color_map.append('green')
+        color_map.append('lightgreen')
         G.add_edge(hostname, str(whole_interface))
 
         if interface_row[1]['Primary_Address'] is None:
-            if description is None or len(description) == 0:
-                pass
-            else:
+            #if description is None or len(description) == 0:
+            #    pass
+            #else:
                 # In the Cisco world, links to other switches are known as “Trunk” ports and links to end devices like PCs are known as “Access” ports.
                 # On a port, which is an Access Port, the Untagged VLAN is called the Access VLAN
                 # On a port, which is a Trunk Port, the Untagged VLAN is called the Native VLAN.
-                if access_vlan is None:
-                    G_layer_2.add_node(str(whole_interface), description=description, name=str(whole_interface))
-                    G_layer_2.add_edge(hostname, str(whole_interface))
-                else:
-                    G_layer_2.add_node(str(whole_interface), description=description, name=str(whole_interface))
-                    G_layer_2.add_edge(hostname, str(whole_interface), access_vlan=access_vlan)
+            if access_vlan is None:
+                G_layer_2.add_node(str(whole_interface), description=description, name=str(whole_interface))
+                G_layer_2.add_edge(hostname, str(whole_interface))
+            else:
+                G_layer_2.add_node(str(whole_interface), description=description, name=str(whole_interface))
+                G_layer_2.add_edge(hostname, str(whole_interface), access_vlan=access_vlan)
         else:
-            primary_address = interface_row[1]['Primary_Address']
-            G_layer_3.add_node(str(interface), description=description, name=str(whole_interface))
+            primary_address = str(interface_row[1]['Primary_Address'])
+            G_layer_3.add_node(str(interface), description=description, name=str(interface))
             G_layer_3.add_edge(hostname, interface, ip_address=primary_address)
 
-def plot_graph(G_layer_2, color_map, fig_number, title, show=True):
+def plot_graph(G_layer_2, color_map, fig_number, title, show=True, layer_2=False):
     fig = plt.figure(fig_number, figsize=(12, 12))
     ax = fig.add_subplot(111)
     #fig, ax = plt.subplots(1)
     margin = 0.44 #.33
     fig.subplots_adjust(margin, margin, 1. - margin, 1. - margin)
     plt.title(title)
-    edge_labels = nx.get_edge_attributes(G_layer_2, 'access_vlan')
+    if layer_2:
+        edge_labels = nx.get_edge_attributes(G_layer_2, 'access_vlan')
+    else:
+        edge_labels = nx.get_edge_attributes(G_layer_2, 'ip_address')
+
     node_labels = nx.get_node_attributes(G_layer_2, 'name')
     node_labels_description = nx.get_node_attributes(G_layer_2, 'description')
     for node,desc in node_labels_description.items():
@@ -300,7 +331,7 @@ def plot_graph(G_layer_2, color_map, fig_number, title, show=True):
     # adding a textbox: https://matplotlib.org/3.1.1/gallery/recipes/placing_text_boxes.html
     textstr = 'Red: Devices\nGreen:Interfaces'
     props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
-    ax.text(0.02, 0.98, textstr, transform=ax.transAxes, fontsize=14,
+    ax.text(0.02, 0.98, textstr, transform=ax.transAxes, fontsize=10,
             verticalalignment='top', bbox=props)
     ##############
     #labels = nx.draw_networkx_labels(G, pos=nx.spring_layout(G))
@@ -309,6 +340,106 @@ def plot_graph(G_layer_2, color_map, fig_number, title, show=True):
     plt.draw()
     if show:
         plt.show()
+
+def create_gns3_rough_draft():
+    # TODO: check that GNS3 is current running
+
+    # TODO: clear project OR make new project (just make sure there's nothing remaining)
+
+    # TODO: add all nodes (just go through graph and add all the devices)
+
+    # TODO: add all of the edges
+
+    # the above steps are easy for switches... but what about routers...
+
+    pass
+
+def create_gns3_copy():
+    auth_tuple = ('admin', 'iSJeYlFLUSwnKDHA9F3jWYLkioJ5Nn6mrEVgCp06VT9kL08bPd4qmTBANfCdoRJZ')
+    r = requests.get('http://127.0.0.1:3080/v2/version',
+                     auth= auth_tuple)
+    print(r.json())
+
+    d = {"name": "testadfgadx",
+         "project_id": "ca29d215-eb6c-4562-a8db-2d03a1844b18"}
+
+    r = requests.post("http://localhost:3080/v2/projects",
+                      auth=auth_tuple, json=d)
+
+    print("project_creation_response: ", r.json(), r.status_code)
+
+    if r.status_code == 409:
+        print("deleting previously existing project")
+
+        r = requests.delete('http://localhost:3080/v2/compute/projects/' + d['project_id'],
+                        auth= auth_tuple)
+        print(r.json())
+
+        r = requests.post("http://localhost:3080/v2/projects",
+                          auth=auth_tuple, json=d)
+
+        print(r.json())
+
+    project_id = r.json()['project_id']
+
+    # might not be open, so we need to open it ourselves...
+    r = requests.post("http://localhost:3080/v2/projects/" + project_id + '/open',
+                      auth=auth_tuple, json=d)
+    print("response to post to open the project:", r.json())
+
+    node1 = {"name": "VPCS 1", "node_type": "vpcs", "compute_id": "local"}
+    node2 = {"name": "VPCS 2", "node_type": "vpcs", "compute_id": "local"}
+
+    # make some nodes
+    #headers = {'content-type': 'application/json'}
+    r = requests.post("http://localhost:3080/v2/projects/" + project_id + "/nodes",
+                     auth=auth_tuple, json=node1)
+    print("node1_response", r.json())
+    node_id_1 = r.json()['node_id']
+    r = requests.post("http://localhost:3080/v2/projects/" + project_id + "/nodes",
+                     auth=auth_tuple, json=node2)
+    print("node2_response", r.json())
+    node_id_2 = r.json()['node_id']
+    ####
+
+    # now link the nodes that we made
+    # TODO TODO: fill in the None categories (what is the adapter number??)
+    link_config = { "nodes": [{"adapter_number": 0, "node_id" : node_id_1, "port_number": 0},
+                              {"adapter_number": 0, "node_id" : node_id_2, "port_number": 0}]}
+    r = requests.post("http://localhost:3080/v2/projects/" + project_id + "/links",
+                     auth=auth_tuple,
+                      json=link_config)
+
+    print("**link_response:", r.json())
+
+    # curl -X POST  "http://localhost:3080/v2/projects/b8c070f7-f34c-4b7b-ba6f-be3d26ed073f/links" -d '
+    #       {"nodes": [{"adapter_number": 0, "node_id": "f124dec0-830a-451e-a314-be50bbd58a00", "port_number": 0},
+    #                  {"adapter_number": 0, "node_id": "83892a4d-aea0-4350-8b3e-d0af3713da74", "port_number": 0}]}'
+
+    # let's try exporting this thing...
+    ##### GET /v2/projects/{project_id}/export¶
+    #header = {'Accept': 'application/json'}
+    d = {'project_id': project_id}
+    r = requests.get("http://localhost:3080/v2/projects/" + project_id + "/export",
+                      auth=('admin', 'iSJeYlFLUSwnKDHA9F3jWYLkioJ5Nn6mrEVgCp06VT9kL08bPd4qmTBANfCdoRJZ'),
+                     json = d)
+    print(r)
+    #print(r.text)
+
+    #print("export_project_response", r.json())
+
+    with open('gns3_archive.zip', 'wb') as f:
+        f.write(r.content)
+
+def discover_important_device_info(G):
+    interface_information_inputted_manually = []
+    print("These are the nodes in the graph:")
+    for node in G.nodes():
+        print(node)
+    prompt_for_interface_info = "Please enter the names of the nodes that you think are important and the type of devie that they are (i.e., switch, router, host, asa):"
+    while True:
+        pass
+
 
 if __name__ == "__main__":
     # Initialize a network and snapshot
@@ -320,13 +451,47 @@ if __name__ == "__main__":
     #'''
 
     '''
+    # Another example that works
+    NETWORK_NAME = "example_network_inter-vlan"
+    SNAPSHOT_NAME = "example_snapshot_inter-vlan"
+    SNAPSHOT_PATH = "./scenarios/Dell N2000 - Inter-VLAN routing problem"
+    # looks like it doesn't support this type of config files??
+    #'''
+
+    ########## the following are examples that I am working on.... #########
+
+    '''
     # ???
     NETWORK_NAME = "example_network_asdm"
     SNAPSHOT_NAME = "example_snapshot_asdm"
     SNAPSHOT_PATH = "./scenarios/Cisco ASA 5505 doesn't allow internet connection"
     #'''
 
+    '''
+    # ???
+    NETWORK_NAME = "example_network_juniper"
+    SNAPSHOT_NAME = "example_snapshot_juniper"
+    SNAPSHOT_PATH = "./scenarios/Juniper SRX240 unstable uplink when client is connected to VPN"
+    #'''
+
+    '''
+    # ???
+    NETWORK_NAME = "example_network_stop_passing"
+    SNAPSHOT_NAME = "example_snapshot_stop_passing"
+    SNAPSHOT_PATH = "./scenarios/Cisco ASA 5505 stop passing traffic randomly"
+    #'''
+
+    '''
+    # ???
+    NETWORK_NAME = "example_network_two_routers"
+    SNAPSHOT_NAME = "example_snapshot_two_routers"
+    SNAPSHOT_PATH = "./scenarios/Two routers, one modem, dual IPs, second address drops connection occasionally"
+    # looks like it doesn't support this type of config files??
+    #'''
+
     main(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH)
+
+    #create_gns3_copy()
 
     # note: I can interact with the local GNS3 server (and it's API) using these commands:
     # curl -i -u 'admin:iSJeYlFLUSwnKDHA9F3jWYLkioJ5Nn6mrEVgCp06VT9kL08bPd4qmTBANfCdoRJZ' http://127.0.0.1:3080/v2/version
