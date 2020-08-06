@@ -1,0 +1,24 @@
+{
+    "edges": [
+        {
+            "node1": {
+                "hostname": "voip_server",
+                "interfaceName": "eth0"
+            },
+            "node2": {
+                "hostname": "abc_mdf3850x",
+                "interfaceName": "GigabitEthernet2/0/32"
+            }
+        },
+        {
+            "node1": {
+                "hostname": "abc_mdf3850x",
+                "interfaceName": "GigabitEthernet1/1/3"
+            },
+            "node2": {
+                "hostname": "abc-3850parts",
+                "interfaceName": "GigabitEthernet1/1/1"
+            }
+        }
+    ]
+}

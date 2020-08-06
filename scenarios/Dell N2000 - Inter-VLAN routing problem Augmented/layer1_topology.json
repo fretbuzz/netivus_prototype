@@ -1,0 +1,14 @@
+{
+    "edges": [
+        {
+            "node1": {
+                "hostname": "as-esw01",
+                "interfaceName": "GigabitEthernet1/0/24"
+            },
+            "node2": {
+                "hostname": "as-csw01",
+                "interfaceName": "GigabitEthernet1/0/22"
+            }
+        }
+    ]
+}

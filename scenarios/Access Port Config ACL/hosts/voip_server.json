@@ -1,0 +1,11 @@
+{
+    "hostname": "voip_server",
+    "iptablesFile": "iptables/generic.iptables",
+    "hostInterfaces": {
+        "eth0": {
+            "name": "eth0",
+            "prefix": "10.10.20.8/24",
+            "gateway": "10.10.20.1"
+        }
+    }
+}
