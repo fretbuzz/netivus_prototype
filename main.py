@@ -412,13 +412,13 @@ def add_edges_to_graphs(edge_dataframe, G, G_layer_2, G_layer_3, color_map, edge
 
         G_layer_2.add_edge(hostname, remote_hostname) #, vlan=native_vlan)
         if whole_interface not in interfaces_removed_so_far:
-            #if whole_interface in G_layer_2.nodes():
-            G_layer_2.remove_node(str(whole_interface))
-            interfaces_removed_so_far.append(whole_interface)
+            if whole_interface in G_layer_2.nodes():
+                G_layer_2.remove_node(str(whole_interface))
+                interfaces_removed_so_far.append(whole_interface)
         if whole_remote_interface not in interfaces_removed_so_far:
-            #if whole_remote_interface in G_layer_2.nodes():
-            G_layer_2.remove_node(str(whole_remote_interface))
-            interfaces_removed_so_far.append(whole_remote_interface)
+            if whole_remote_interface in G_layer_2.nodes():
+                G_layer_2.remove_node(str(whole_remote_interface))
+                interfaces_removed_so_far.append(whole_remote_interface)
 
     return connected_interfaces
 
@@ -710,11 +710,21 @@ if __name__ == "__main__":
     SNAPSHOT_PATH = "./scenarios/Access Port Config ACL"
     #'''
 
-    #'''
+    '''
     # IP address conflict (the HotNets example) -- augmented
     NETWORK_NAME = "example_network_augmented"
     SNAPSHOT_NAME = "example_snapshot_augmented"
     SNAPSHOT_PATH = "./scenarios/Access port config augmented"
+    start_location = 'abc-3850parts[GigabitEthernet1/1/2]'
+    dst_ip = '10.10.20.8'
+    src_ip = '10.10.20.60'
+    #'''
+
+    #'''
+    # IP address conflict (the HotNets example) -- augmented
+    NETWORK_NAME = "example_network_correct"
+    SNAPSHOT_NAME = "example_snapshot_correct"
+    SNAPSHOT_PATH = "./scenarios/Access Port Config Augmented"
     start_location = 'abc-3850parts[GigabitEthernet1/1/2]'
     dst_ip = '10.10.20.8'
     src_ip = '10.10.20.60'

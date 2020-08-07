@@ -46,7 +46,7 @@ if __name__ == "__main__":
     ''' # test for problem reproduction (don't uncomment)
     bfq.bidirectionalTraceroute(startLocation='@enter(abc-3850parts[GigabitEthernet1/1/2])',
                                 headers=HeaderConstraints(dstIps='10.10.20.8',
-                                                          srcIps='10.10.20.60')).answer().frame(
+                                                          srcIps='10.10.20.60')).answer().frame()
     '''
 
 
