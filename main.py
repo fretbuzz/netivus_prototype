@@ -710,7 +710,7 @@ if __name__ == "__main__":
     SNAPSHOT_PATH = "./scenarios/Access Port Config ACL"
     #'''
 
-    '''
+    #'''
     # IP address conflict (the HotNets example) -- augmented
     NETWORK_NAME = "example_network_augmented"
     SNAPSHOT_NAME = "example_snapshot_augmented"
@@ -739,7 +739,7 @@ if __name__ == "__main__":
 
     ########## the following are examples that I am working on.... #########
 
-    #'''
+    '''
     # ???
     NETWORK_NAME = "example_network_asdm"
     SNAPSHOT_NAME = "example_snapshot_asdm"
