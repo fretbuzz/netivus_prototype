@@ -63,8 +63,8 @@ def run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_
 
     G, G_layer_2, G_layer_3, color_map = generate_graph_representations(intermediate_scenario_directory, DEBUG)
 
-    plot_graph(G_layer_3, color_map, fig_number=5, title='layer_3_connectivity')
-    plot_graph(G_layer_2, color_map, fig_number=4, title='layer_2_connectivity')
+    plot_graph(G_layer_3, color_map, fig_number=5, title='layer_3_connectivity', layer_2=False)
+    plot_graph(G_layer_2, color_map, fig_number=4, title='layer_2_connectivity', layer_2=True)
 
     if not no_interactive_flag:
         G_layer_2, interface_information_inputted_manually = discover_important_device_info(G_layer_2, color_map,
@@ -154,6 +154,9 @@ def generate_graph_representations(intermediate_scenario_directory, DEBUG):
         node_properties_trunc = bfq.nodeProperties(properties="Device_Type,Interfaces").answer().frame()
 
         print(node_properties_trunc)
+
+        print("---------")
+        print(bfq.undefinedReferences().answer().frame())
 
         print("layer1Edges")
         print("----------------------")
@@ -429,12 +432,14 @@ def add_interfaces_to_graphs(interface_dataframe, G, G_layer_2, G_layer_3, color
         native_vlan = interface_row[1]['Native_VLAN']
         access_vlan = interface_row[1]['Access_VLAN']
         allowed_vlans = interface_row[1]['Allowed_VLANs']
+        speed = interface_row[1]['Speed']
+        declared_names = interface_row[1]['Declared_Names']
 
         G.add_node(str(whole_interface), type='interface', description=description, name=str(whole_interface))
         color_map.append('lightgreen')
         G.add_edge(hostname, str(whole_interface))
 
-        if 'Vlan' not in interface:
+        if speed is not None:
             #if description is None or len(description) == 0:
             #    pass
             #else:
@@ -448,8 +453,15 @@ def add_interfaces_to_graphs(interface_dataframe, G, G_layer_2, G_layer_3, color
                 G_layer_2.add_node(str(whole_interface), description=description, name=str(whole_interface))
                 G_layer_2.add_edge(hostname, str(whole_interface), access_vlan=access_vlan)
         else:
+            new_names = []
+            for declared_name in declared_names:
+                if str(interface) != declared_name:
+                    new_names.append(declared_name)
+            augmented_name = str(interface)
+            for new_name in new_names:
+                augmented_name += '\n' + new_name
             primary_address = str(interface_row[1]['Primary_Address'])
-            G_layer_3.add_node(str(interface), description=description, name=str(interface))
+            G_layer_3.add_node(str(interface), description=description, name=str(augmented_name))
             G_layer_3.add_edge(hostname, interface, ip_address=primary_address)
 
 def plot_graph(G_layer_2, color_map, fig_number, title, show=True, layer_2=False, filename=None):
@@ -732,7 +744,15 @@ if __name__ == "__main__":
     NETWORK_NAME = "example_network_asdm"
     SNAPSHOT_NAME = "example_snapshot_asdm"
     SNAPSHOT_PATH = "./scenarios/Cisco ASA 5505 doesn't allow internet connection"
+    start_location = 'lab-asa[Ethernet0/2]'
+    dst_ip = '8.8.8.8'
+    src_ip = '172.16.1.4'
     #'''
+    '''
+    bfq.bidirectionalTraceroute(startLocation='@enter(lab-asa[Ethernet0/2])',
+                                headers=HeaderConstraints(dstIps='8.8.8.8',
+                                                          srcIps='172.16.1.4')).answer().frame(
+    '''
 
     '''
     # ???
