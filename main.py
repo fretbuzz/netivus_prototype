@@ -720,8 +720,8 @@ if __name__ == "__main__":
     src_ip = '10.10.20.60'
     #'''
 
-    #'''
-    # IP address conflict (the HotNets example) -- augmented
+    '''
+    # IP address conflict (the HotNets example) -- augmented (and NOT correct) -- use this!
     NETWORK_NAME = "example_network_correct"
     SNAPSHOT_NAME = "example_snapshot_correct"
     SNAPSHOT_PATH = "./scenarios/Access Port Config Augmented"
@@ -729,6 +729,17 @@ if __name__ == "__main__":
     dst_ip = '10.10.20.8'
     src_ip = '10.10.20.60'
     #'''
+
+    #'''
+    # IP address conflict (the HotNets example) -- augmented + correct
+    NETWORK_NAME = "example_network_correct"
+    SNAPSHOT_NAME = "example_snapshot_correct"
+    SNAPSHOT_PATH = "./scenarios/Access Port Config Correct"
+    start_location = 'abc-3850parts[GigabitEthernet1/1/2]'
+    dst_ip = '10.10.20.8'
+    src_ip = '10.10.20.60'
+    #'''
+
 
     '''
     # Another example that works
@@ -739,13 +750,20 @@ if __name__ == "__main__":
     #'''
 
     '''
-    # Another example that works
+    # Dell N2000 - Inter-VLAN routing problem Augmented
     NETWORK_NAME = "example_network_inter-vlan_augmented"
     SNAPSHOT_NAME = "example_snapshot_inter-vlan_augmented"
     SNAPSHOT_PATH = "./scenarios/Dell N2000 - Inter-VLAN routing problem Augmented"
     # looks like it doesn't support this type of config files??
     #'''
 
+
+    '''
+    # Juniper SRX240 unstable uplink when client is connected to VPN
+    NETWORK_NAME = "example_network_juniper"
+    SNAPSHOT_NAME = "example_snapshot_juniper"
+    SNAPSHOT_PATH = "./scenarios/Juniper SRX240 unstable uplink when client is connected to VPN"
+    #'''
 
     ########## the following are examples that I am working on.... #########
 
@@ -763,13 +781,6 @@ if __name__ == "__main__":
                                 headers=HeaderConstraints(dstIps='8.8.8.8',
                                                           srcIps='172.16.1.4')).answer().frame(
     '''
-
-    '''
-    # ???
-    NETWORK_NAME = "example_network_juniper"
-    SNAPSHOT_NAME = "example_snapshot_juniper"
-    SNAPSHOT_PATH = "./scenarios/Juniper SRX240 unstable uplink when client is connected to VPN"
-    #'''
 
     '''
     # ???
