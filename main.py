@@ -16,6 +16,7 @@ import requests
 import shutil
 from pathlib import Path
 import json
+import argparse
 
 def main(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_ip, src_ip, no_interactive_flag):
     run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_ip, src_ip, no_interactive_flag)
@@ -692,6 +693,10 @@ def add_generic_host(hostname, path_to_directory, gateway_ip, host_ip, subnet_ma
     return 'eth0'
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Runs Netivus Workflow')
+    parser.add_argument('--netivus_experiment',dest="netivus_experiment", default=None)
+    args = parser.parse_args()
+
     start_location, dst_ip, src_ip = None, None, None
 
     # Initialize a network and snapshot
@@ -710,92 +715,81 @@ if __name__ == "__main__":
     SNAPSHOT_PATH = "./scenarios/Access Port Config ACL"
     #'''
 
-    '''
-    # IP address conflict (the HotNets example) -- augmented
-    NETWORK_NAME = "example_network_augmented"
-    SNAPSHOT_NAME = "example_snapshot_augmented"
-    SNAPSHOT_PATH = "./scenarios/Access port config augmented"
-    start_location = 'abc-3850parts[GigabitEthernet1/1/2]'
-    dst_ip = '10.10.20.8'
-    src_ip = '10.10.20.60'
-    #'''
+    if args.netivus_experiment == 'hotnets_example':
+        #'''
+        # IP address conflict (the HotNets example) -- augmented (but the duplicate IP address is still there)
+        NETWORK_NAME = "example_network_augmented"
+        SNAPSHOT_NAME = "example_snapshot_augmented"
+        SNAPSHOT_PATH = "./scenarios/Access port config Augmented"
+        start_location = 'abc-3850parts[GigabitEthernet1/0/1]' # 'abc-3850parts[GigabitEthernet1/1/2]'
+        dst_ip = '10.10.20.8'
+        src_ip = '10.00.20.60' #  '10.10.20.60'
+        #'''
+    elif args.netivus_experiment == 'hotnets_example_fixed':
+        #'''
+        # IP address conflict (the HotNets example) -- augmented + correct (so the duplicate IP address is now gone)
+        NETWORK_NAME = "example_network_correct"
+        SNAPSHOT_NAME = "example_snapshot_correct"
+        SNAPSHOT_PATH = "./scenarios/Access Port Config Correct"
+        start_location = 'abc-3850parts[GigabitEthernet1/1/2]'
+        dst_ip = '10.10.20.8'
+        src_ip = '10.10.20.60'
+        #'''
+    elif args.netivus_experiment == 'inter-vlan':
+        '''
+        # Another example that works
+        NETWORK_NAME = "example_network_inter-vlan"
+        SNAPSHOT_NAME = "example_snapshot_inter-vlan"
+        SNAPSHOT_PATH = "./scenarios/Dell N2000 - Inter-VLAN routing problem"
+        # looks like it doesn't support this type of config files??
+        #'''
 
-    '''
-    # IP address conflict (the HotNets example) -- augmented (and NOT correct) -- use this!
-    NETWORK_NAME = "example_network_correct"
-    SNAPSHOT_NAME = "example_snapshot_correct"
-    SNAPSHOT_PATH = "./scenarios/Access Port Config Augmented"
-    start_location = 'abc-3850parts[GigabitEthernet1/1/2]'
-    dst_ip = '10.10.20.8'
-    src_ip = '10.10.20.60'
-    #'''
+        #'''
+        # Dell N2000 - Inter-VLAN routing problem Augmented
+        NETWORK_NAME = "example_network_inter-vlan_augmented"
+        SNAPSHOT_NAME = "example_snapshot_inter-vlan_augmented"
+        SNAPSHOT_PATH = "./scenarios/Dell N2000 - Inter-VLAN routing problem Augmented"
+        # looks like it doesn't support this type of config files??
+        #'''
+    elif args.netivus_experiment == 'juniper_uplink_unstable':
+        #'''
+        # Juniper SRX240 unstable uplink when client is connected to VPN
+        NETWORK_NAME = "example_network_juniper"
+        SNAPSHOT_NAME = "example_snapshot_juniper"
+        SNAPSHOT_PATH = "./scenarios/Juniper SRX240 unstable uplink when client is connected to VPN"
+        #'''
+    elif args.netivus_experiment == 'cisco_asa_doesnt_allow_internet':
+        #'''
+        # ???
+        NETWORK_NAME = "example_network_asdm"
+        SNAPSHOT_NAME = "example_snapshot_asdm"
+        SNAPSHOT_PATH = "./scenarios/Cisco ASA 5505 doesn't allow internet connection"
+        start_location = 'lab-asa[Ethernet0/2]'
+        dst_ip = '8.8.8.8'
+        src_ip = '172.16.1.4'
+        #'''
+        '''
+        bfq.bidirectionalTraceroute(startLocation='@enter(lab-asa[Ethernet0/2])',
+                                    headers=HeaderConstraints(dstIps='8.8.8.8',
+                                                              srcIps='172.16.1.4')).answer().frame(
+        '''
+    else:
+        ########## the following are examples that I am working on.... #########
 
-    #'''
-    # IP address conflict (the HotNets example) -- augmented + correct
-    NETWORK_NAME = "example_network_correct"
-    SNAPSHOT_NAME = "example_snapshot_correct"
-    SNAPSHOT_PATH = "./scenarios/Access Port Config Correct"
-    start_location = 'abc-3850parts[GigabitEthernet1/1/2]'
-    dst_ip = '10.10.20.8'
-    src_ip = '10.10.20.60'
-    #'''
+        '''
+        # ???
+        NETWORK_NAME = "example_network_stop_passing"
+        SNAPSHOT_NAME = "example_snapshot_stop_passing"
+        SNAPSHOT_PATH = "./scenarios/Cisco ASA 5505 stop passing traffic randomly"
+        #'''
 
-
-    '''
-    # Another example that works
-    NETWORK_NAME = "example_network_inter-vlan"
-    SNAPSHOT_NAME = "example_snapshot_inter-vlan"
-    SNAPSHOT_PATH = "./scenarios/Dell N2000 - Inter-VLAN routing problem"
-    # looks like it doesn't support this type of config files??
-    #'''
-
-    '''
-    # Dell N2000 - Inter-VLAN routing problem Augmented
-    NETWORK_NAME = "example_network_inter-vlan_augmented"
-    SNAPSHOT_NAME = "example_snapshot_inter-vlan_augmented"
-    SNAPSHOT_PATH = "./scenarios/Dell N2000 - Inter-VLAN routing problem Augmented"
-    # looks like it doesn't support this type of config files??
-    #'''
-
-
-    '''
-    # Juniper SRX240 unstable uplink when client is connected to VPN
-    NETWORK_NAME = "example_network_juniper"
-    SNAPSHOT_NAME = "example_snapshot_juniper"
-    SNAPSHOT_PATH = "./scenarios/Juniper SRX240 unstable uplink when client is connected to VPN"
-    #'''
-
-    ########## the following are examples that I am working on.... #########
-
-    '''
-    # ???
-    NETWORK_NAME = "example_network_asdm"
-    SNAPSHOT_NAME = "example_snapshot_asdm"
-    SNAPSHOT_PATH = "./scenarios/Cisco ASA 5505 doesn't allow internet connection"
-    start_location = 'lab-asa[Ethernet0/2]'
-    dst_ip = '8.8.8.8'
-    src_ip = '172.16.1.4'
-    #'''
-    '''
-    bfq.bidirectionalTraceroute(startLocation='@enter(lab-asa[Ethernet0/2])',
-                                headers=HeaderConstraints(dstIps='8.8.8.8',
-                                                          srcIps='172.16.1.4')).answer().frame(
-    '''
-
-    '''
-    # ???
-    NETWORK_NAME = "example_network_stop_passing"
-    SNAPSHOT_NAME = "example_snapshot_stop_passing"
-    SNAPSHOT_PATH = "./scenarios/Cisco ASA 5505 stop passing traffic randomly"
-    #'''
-
-    '''
-    # ???
-    NETWORK_NAME = "example_network_two_routers"
-    SNAPSHOT_NAME = "example_snapshot_two_routers"
-    SNAPSHOT_PATH = "./scenarios/Two routers, one modem, dual IPs, second address drops connection occasionally"
-    # looks like it doesn't support this type of config files??
-    #'''
+        '''
+        # ???
+        NETWORK_NAME = "example_network_two_routers"
+        SNAPSHOT_NAME = "example_snapshot_two_routers"
+        SNAPSHOT_PATH = "./scenarios/Two routers, one modem, dual IPs, second address drops connection occasionally"
+        # looks like it doesn't support this type of config files??
+        #'''
 
     no_interactive_flag = True # if true, do not take any input from the operator via the CLI
     main(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_ip, src_ip, no_interactive_flag)
