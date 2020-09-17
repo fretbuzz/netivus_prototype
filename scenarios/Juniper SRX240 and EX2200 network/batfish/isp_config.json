@@ -1,0 +1,14 @@
+{
+  "borderInterfaces": [
+    {
+      "borderInterface": {
+        "hostname": "srx240",
+        "interface": "ge-0/0/0"
+      }
+    }
+  ],
+  "filter": {
+    "onlyRemoteAsns": [],
+    "onlyRemoteIps": []
+  }
+}

@@ -1,0 +1,24 @@
+{
+    "edges": [
+        {
+            "node1": {
+                "hostname": "ex2200",
+                "interfaceName": "ge-0/0/22.0"
+            },
+            "node2": {
+                "hostname": "srx240",
+                "interfaceName": "ge-0/0/1.0"
+            }
+        },
+        {
+            "node1": {
+                "hostname": "srx240",
+                "interfaceName": "ge-0/0/1.0"
+            },
+            "node2": {
+                "hostname": "ex2200",
+                "interfaceName": "ge-0/0/22.0"
+            }
+        }
+    ]
+}
