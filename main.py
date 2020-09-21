@@ -202,6 +202,7 @@ def query_engine(mismatch_index, forward_hops, desired_path, foward_hops_node_on
         bgp_sessions = bfq.bgpSessionCompatibility().answer().frame()
         if ospf_sessions.size == 0 and bgp_sessions.size == 0:
             explanation.append('No routing protocols configured')
+
         else:
             # TODO: need to implement this part
             pass
@@ -508,7 +509,8 @@ def add_edges_to_graphs(edge_dataframe, G, G_layer_2, G_layer_3, color_map, edge
             elif 'Vlan' not in local_vlan and 'Vlan' in remote_vlan:
                 local_vlan = remote_vlan
             else:
-                exit('why does local_vlan not equal remote_vlan!?!')
+                pass
+                #exit('why does local_vlan not equal remote_vlan!?!')
 
         G.add_edge(local_interface, remote_interface)
         if local_ip is not None and remote_ip is not None:
@@ -948,7 +950,38 @@ if __name__ == "__main__":
         SNAPSHOT_NAME = "networks_example_live-with-isp"
         SNAPSHOT_PATH = "./scenarios/example_scenarios_from_batfish_github/batfish/networks/example/live-with-isp/"
 
+    elif args.netivus_experiment == "aaaa":
+        NETWORK_NAME = "aaaa"
+        SNAPSHOT_NAME = "aaaa"
+        SNAPSHOT_PATH = "./scenarios/aaaa"
 
+    elif args.netivus_experiment == "Cisco_Router_Setup_1841":
+        NETWORK_NAME = "Cisco_Router_Setup_1841"
+        SNAPSHOT_NAME = "Cisco_Router_Setup_1841"
+        SNAPSHOT_PATH = "./scenarios/Cisco_Router_Setup_1841"
+        start_location = 'router[FastEthernet0/0]'
+        dst_ip = '8.8.8.8'
+        src_ip = '10.0.4.5'
+    elif args.netivus_experiment == 'hotnets_example_acl':
+        #'''
+        # IP address conflict (the HotNets example) -- augmented + correct (so the duplicate IP address is now gone)
+        NETWORK_NAME = "hotnets_example_acl"
+        SNAPSHOT_NAME = "hotnets_example_acl"
+        SNAPSHOT_PATH = "./scenarios/Access Port Config ACL"
+        start_location = 'abc-3850parts[GigabitEthernet1/1/2]'
+        dst_ip = '10.10.20.8'
+        src_ip = '10.10.20.60'
+        #'''
+    elif args.netivus_experiment == 'hotnets_example_no_routes':
+        #'''
+        # IP address conflict (the HotNets example) -- augmented + correct (so the duplicate IP address is now gone)
+        NETWORK_NAME = "hotnets_example_no_routes"
+        SNAPSHOT_NAME = "hotnets_example_no_routes"
+        SNAPSHOT_PATH = "./scenarios/Access Port Config No Routes"
+        start_location = 'abc-3850parts[GigabitEthernet1/1/2]'
+        dst_ip = '10.10.20.8'
+        src_ip = '10.10.20.60'
+        #'''
     else:
         ########## the following are examples that I am working on.... #########
 
