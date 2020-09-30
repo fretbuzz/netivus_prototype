@@ -1,0 +1,14 @@
+{
+  "borderInterfaces": [
+    {
+      "borderInterface": {
+        "hostname": "router",
+        "interface": "GigabitEthernet0/0"
+      }
+    }
+  ],
+  "filter": {
+    "onlyRemoteAsns": [],
+    "onlyRemoteIps": []
+  }
+}

@@ -1,0 +1,14 @@
+{
+    "edges": [
+        {
+            "node1": {
+                "hostname": "upstream_router",
+                "interfaceName": "FastEthernet0"
+            },
+            "node2": {
+                "hostname": "--obscured--",
+                "interfaceName": "fe-0/0/0.0"
+            }
+        }
+    ]
+}

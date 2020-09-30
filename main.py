@@ -107,7 +107,7 @@ def run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_
     explanation = None
     if start_location is not None and dst_ip is not None and src_ip is not None:
         print("finding forward hops...")
-        forward_hops = run_traceroute(start_location, dst_ip, src_ip)
+        forward_hops, return_hops = run_traceroute(start_location, dst_ip, src_ip)
 
         foward_hops_node_only = [forward_hops[i].node for i in range(0,len(forward_hops))]
 
@@ -135,6 +135,17 @@ def run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_
     # todo: see if the traceroute command reproduces the problem that we expect it to reproduce
 
     return G_layer_2, G_layer_3, explanation
+
+'''
+def debug_network_problem():
+    ensure_source_and_destination_are_present()
+
+    can_problem_be_reproduced = attempt_to_reproduce_problem()
+
+    possible_explanations = generate_explanations()
+
+    return possible_explanations
+'''
 
 def query_engine(mismatch_index, forward_hops, desired_path, foward_hops_node_only, start_location, dst_ip, src_ip):
     explanation = []
@@ -255,7 +266,11 @@ def run_traceroute(start_location, dst_ip, src_ip):
     '''
 
     forward_hops = traceroute_results.answer().frame().Forward_Traces[0][0].hops
-    return forward_hops
+    try:
+        return_hops = traceroute_results.answer().frame().Reverse_Traces[0][0].hops
+    except:
+        return_hops = None
+    return forward_hops, return_hops
 
 def is_problem_reproduced():
     pass
@@ -891,8 +906,11 @@ if __name__ == "__main__":
         # Juniper SRX240 unstable uplink when client is connected to VPN
         NETWORK_NAME = "example_network_juniper"
         SNAPSHOT_NAME = "example_snapshot_juniper"
-        SNAPSHOT_PATH = "./scenarios/Juniper SRX240 unstable uplink when client is connected to VPN"
+        SNAPSHOT_PATH = "./scenarios/Juniper SRX240 unstable uplink when client is connected to VPN withSecondDevice"
         #'''
+        start_location = '--obscured--[fe-0/0/1]'
+        dst_ip = '8.8.8.8'
+        src_ip = '192.168.2.22'
     elif args.netivus_experiment == 'cisco_asa_doesnt_allow_internet':
         #'''
         # ???
@@ -925,16 +943,16 @@ if __name__ == "__main__":
         src_ip = '192.168.3.4'
         '''
     elif args.netivus_experiment == "Juniper_SRX240_and_EX2200_network":
-            NETWORK_NAME = "Juniper_SRX240_and_EX2200_network"
-            SNAPSHOT_NAME = "Juniper_SRX240_and_EX2200_network"
-            SNAPSHOT_PATH = "./scenarios/Juniper SRX240 and EX2200 network"
-            #'''
-            # host on ex2200 trying to reach the WAN (srx240[ge0/0/0.0])
-            start_location = 'ex2200[ge-0/0/13]'
-            dst_ip = '8.8.8.8'
-            src_ip = '192.168.1.5'
-            desired_path = ['ex2200', 'srx240', 'internet']
-            #'''
+        NETWORK_NAME = "Juniper_SRX240_and_EX2200_network"
+        SNAPSHOT_NAME = "Juniper_SRX240_and_EX2200_network"
+        SNAPSHOT_PATH = "./scenarios/Juniper SRX240 and EX2200 network"
+        #'''
+        # host on ex2200 trying to reach the WAN (srx240[ge0/0/0.0])
+        start_location = 'ex2200[ge-0/0/13]'
+        dst_ip = '8.8.8.8'
+        src_ip = '192.168.1.5'
+        desired_path = ['ex2200', 'srx240', 'internet']
+        #'''
     elif args.netivus_experiment == "Juniper_SRX240_and_EX2200_network_FIXED":
         NETWORK_NAME = "Juniper_SRX240_and_EX2200_network_fixed"
         SNAPSHOT_NAME = "Juniper_SRX240_and_EX2200_network_fixed"
@@ -982,6 +1000,49 @@ if __name__ == "__main__":
         dst_ip = '10.10.20.8'
         src_ip = '10.10.20.60'
         #'''
+    elif args.netivus_experiment == 'route_based_ipsec':
+        # IP address conflict (the HotNets example) -- augmented + correct (so the duplicate IP address is now gone)
+        NETWORK_NAME = "route_based_ipsec"
+        SNAPSHOT_NAME = "route_based_ipsec"
+        SNAPSHOT_PATH = "./scenarios/Route-based ipsec between cisco router end juniper srx"
+        start_location = None # TODO
+        dst_ip = None # TODO
+        src_ip = None # TODO
+
+    elif args.netivus_experiment == 'dhcp_config':
+        NETWORK_NAME = "dhcp_config"
+        SNAPSHOT_NAME = "dhcp_config"
+        SNAPSHOT_PATH = "./scenarios/DHCP Configurauion on Cisco router"
+        start_location = 'router250[Ethernet1/1]'  # TODO
+        #start_location = 'a_host[eth0]'  # TODO
+        dst_ip = '20.0.0.2'  # TODO
+        src_ip = '40.0.0.15'  # TODO
+
+    elif args.netivus_experiment == "cannot_access_inside_from_outside":
+        NETWORK_NAME = "cannot_access_inside_from_outside"
+        SNAPSHOT_NAME = "cannot_access_inside_from_outside"
+        SNAPSHOT_PATH = "./scenarios/Can not access PC(inside) from router(outside) through ASA 5512"
+        start_location = "router[GigabitEthernet0/0]"
+        dst_ip = '192.168.0.5'
+        src_ip = '192.168.100.254'
+
+    elif args.netivus_experiment == "problem_with_cisco_asa_nat":
+        pass
+        NETWORK_NAME = "problem_with_cisco_asa_nat"
+        SNAPSHOT_NAME = "problem_with_cisco_asa_nat"
+        SNAPSHOT_PATH = "./scenarios/Problem with Cisco ASA 5512 NAT Configuration"
+        start_location = 'asa[Outside]'
+        dst_ip = "10.3.3.128"
+        src_ip = "62.5.3.226"
+
+    elif args.netivus_experiment == "private_lan_cannot_access_internet":
+        # Cisco 1921 private LAN can't access internet on WAN interface
+        NETWORK_NAME = "private_lan_cannot_access_internet"
+        SNAPSHOT_NAME = "private_lan_cannot_access_internet"
+        SNAPSHOT_PATH = "./scenarios/Cisco 1921 private LAN can't access internet on WAN interface"
+        start_location = 'cisco-1-c[GigabitEthernet0/0]'  # TODO
+        dst_ip = '8.8.8.8'  # TODO
+        src_ip = '10.1.9.22'  # TODO
     else:
         ########## the following are examples that I am working on.... #########
 

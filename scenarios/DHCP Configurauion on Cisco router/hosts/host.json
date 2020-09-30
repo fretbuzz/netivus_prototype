@@ -1,0 +1,11 @@
+{
+    "hostname": "a_host",
+    "iptablesFile": "iptables/generic.iptables",
+    "hostInterfaces": {
+        "eth0": {
+            "name": "eth0",
+            "prefix": "40.0.0.15/24",
+            "gateway": "40.0.0.1"
+        }
+    }
+}
