@@ -7,6 +7,7 @@ from pybatfish.datamodel.answer import *
 from pybatfish.datamodel.flow import *
 from pybatfish.question import *
 from pybatfish.question import bfq
+from flowchart_algo import debug_network_problem
 
 import networkx as nx
 import matplotlib.pyplot as plt
@@ -19,11 +20,14 @@ import json
 import argparse
 import ipaddress
 
-def main(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_ip, src_ip, desired_path, no_interactive_flag):
-    G_layer_2, G_layer_3, explanation = run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_ip, src_ip, no_interactive_flag)
+def main(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_ip, src_ip, desired_path, problematic_path,
+         no_interactive_flag):
+    G_layer_2, G_layer_3, explanation = run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location,
+                                                    dst_ip, src_ip, problematic_path, no_interactive_flag)
     print("Explanation: " + str(explanation))
 
-def run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_ip, src_ip, no_interactive_flag, DEBUG=True):
+def run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_ip, src_ip, problematic_path,
+                no_interactive_flag, DEBUG=True, protocol='tcp'):
     #% run startup.py
     #bf_session.host = "172.0.0.1"  # <batfish_service_ip>
     bf_session.host = 'localhost'
@@ -93,91 +97,18 @@ def run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_
     plot_graph(G_layer_3, color_map, fig_number=5, title='layer_3_connectivity', layer_2=False,
                filename="./outputs/" + NETWORK_NAME + "/layer_3_diagram.png")
 
-    ''' # not needed b/c we are augmenting the layer-1 topology...
-    G, G_layer_2, G_layer_3, color_map, manually_connected_layer3_nodes = \
-        connect_nodes_via_manual_analysis(title='layer_3_connectivity',
-                                          figname="./outputs/" + NETWORK_NAME + "/layer_3_diagram.png",
-                                          intermediate_scenario_directory = intermediate_scenario_directory,
-                                          DEBUG = DEBUG,
-                                          level_1_topology_path=level_1_topology_path,
-                                          layer_2=False)
-    '''
-
-    # todo: run the traceroute commadn
-    explanation = None
-    if start_location is not None and dst_ip is not None and src_ip is not None:
-        print("finding forward hops...")
-        forward_hops, return_hops = run_traceroute(start_location, dst_ip, src_ip)
-
-        foward_hops_node_only = [forward_hops[i].node for i in range(0,len(forward_hops))]
-
-        if len(forward_hops[-1].steps) > 3:
-            if forward_hops[-1][-1].action == 'EXITS_NETWORK':
-                foward_hops_node_only.append('LEFT_NETWORK via ' + forward_hops[-1][-1].detail.outputInterface)
-
-        if desired_path is not None:
-            mismatch_node_index = None
-            for index in range(0,max( len(foward_hops_node_only), len(desired_path) ) ):
-                if index >= len(desired_path):
-                    mismatch_node_index = index
-                    break
-                elif index >= len(foward_hops_node_only):
-                    mismatch_node_index = index
-                    break
-                elif foward_hops_node_only[index] != desired_path[index]:
-                    mismatch_node_index = index
-                    break
-            print("mismatch_node_index", mismatch_node_index)
-            #the_hop_that_we_need_to_explain = (forward_hops[mismatch_node_index-1].node, forward_hops[mismatch_node_index].node)
-
-            explanation = query_engine(mismatch_node_index, forward_hops, desired_path, foward_hops_node_only, start_location, dst_ip, src_ip)
-
-    # todo: see if the traceroute command reproduces the problem that we expect it to reproduce
+    explanation = debug_network_problem(start_location, dst_ip, src_ip, protocol, desired_path, problematic_path)
 
     return G_layer_2, G_layer_3, explanation
 
-'''
-def debug_network_problem():
-    ensure_source_and_destination_are_present()
 
-    can_problem_be_reproduced = attempt_to_reproduce_problem()
-
-    possible_explanations = generate_explanations()
-
-    return possible_explanations
-'''
-
-def query_engine(mismatch_index, forward_hops, desired_path, foward_hops_node_only, start_location, dst_ip, src_ip):
-    explanation = []
-    hop_that_happened = (foward_hops_node_only[mismatch_index - 1], foward_hops_node_only[mismatch_index])
-    hop_that_we_want_to_happen = (desired_path[mismatch_index - 1], desired_path[mismatch_index])
-
-    # Q: why is this routed differently?
-    # First, find the route that was chosen
-    longest_prefix_match = bfq.lpmRoutes(ip=dst_ip, nodes=hop_that_happened[0]).answer().frame()
-
-    # Second, find all of the routes that could have been chosen
+def find_all_routes_with_correct_next_hop(hop_that_happened, hop_that_we_want_to_happen, matching_routes):
     device_that_routed_packet = hop_that_happened[0]
-    routing_table_df = bfq.routes().answer().frame().sort_values(by="Node")
-    only_relevant_routing_table_rows = routing_table_df[routing_table_df['Node'] == device_that_routed_packet]
-
-    matching_routes = []
-    dst_ip_object = ipaddress.ip_address(dst_ip)
-    for row in only_relevant_routing_table_rows.iterrows():
-        ip_addr_and_mask = row[1]['Network']
-        ip_addr_with_mask = ipaddress.ip_network(ip_addr_and_mask, strict=True)
-        if dst_ip_object in ip_addr_with_mask:
-            matching_routes.append( row )
-
-    # Third, are there any routes that would have given us what we wanted?
-    # We need to map the L3 "next_hop" of the routing table to the corresponding L2 broadcast domain.
-    # If the device that we want to send to is on this L2 broadcast domain, then this would give us what we want.
-    # If not, then it won't.
-
     routes_with_correct_next_hop = []
     vlan_properties = bfq.switchedVlanProperties(nodes=device_that_routed_packet).answer().frame()
     for matching_route in matching_routes:
-        network, next_hop_ip, next_hop_interface = matching_route[1]['Network'], matching_route[1]['Next_Hop_IP'], matching_route[1]['Next_Hop_Interface']
+        network, next_hop_ip, next_hop_interface = matching_route[1]['Network'], matching_route[1]['Next_Hop_IP'], \
+                                                   matching_route[1]['Next_Hop_Interface']
         # TODO: what does it mean  when the next_hop_interface is dynamic (looks like it typically occurs when there is a concrete next_hop_ip)
 
         if 'vlan' in next_hop_interface.lower():
@@ -197,80 +128,21 @@ def query_engine(mismatch_index, forward_hops, desired_path, foward_hops_node_on
                     routes_with_correct_next_hop.append(matching_route)
                     break
 
-    # so now we have the set of routes that we could have taken but that we did NOT take. This brings us to the next
-    # step....
-    # Fourth, (a) If there are no routes investigate, why not? OR (b) if there is a route, why didn't we use it?
-    if len(routes_with_correct_next_hop) == 0:
-        # (a) Three basic types of routes: static route, routing protocols (i.e. dynamic), direct (i.e. layer-3 edge)
-        # i. Why no static route?
-        # -> b/c no configs
-        explanation.append('No static routes configured')
+    return routes_with_correct_next_hop
 
-        # ii. Why no dynamic route?
-        # -> are routing protocols configured?
-        # -> if yes, why isn't it working correctly
-        ospf_sessions = bfq.ospfSessionCompatibility().answer().frame()
-        bgp_sessions = bfq.bgpSessionCompatibility().answer().frame()
-        if ospf_sessions.size == 0 and bgp_sessions.size == 0:
-            explanation.append('No routing protocols configured')
+def find_all_routes_that_match(hop_that_happened):
+    device_that_routed_packet = hop_that_happened[0]
+    routing_table_df = bfq.routes().answer().frame().sort_values(by="Node")
+    only_relevant_routing_table_rows = routing_table_df[routing_table_df['Node'] == device_that_routed_packet]
 
-        else:
-            # TODO: need to implement this part
-            pass
-
-        # iii. Why no direct route?
-        # -> is there a L1 route?
-        l1_routes = bfq.layer1Edges(nodes=device_that_routed_packet).answer().frame()
-        if l1_routes.size > 0:
-            for l1_route in l1_routes.iterrows():
-                remote_interface = l1_route[1]['Remote_Interface']
-                local_interface = l1_route[1]['Interface']
-                if remote_interface.hostname == hop_that_we_want_to_happen[1]:
-                    # a link exists. Why aren't we using it?
-                    # -> is there a port mismatch?
-                    ports_on_device_that_did_the_routing = bfq.interfaceProperties(nodes=device_that_routed_packet).answer().frame()
-                    relevant_port_src = ports_on_device_that_did_the_routing[ ports_on_device_that_did_the_routing['Interface'] == local_interface]
-                    ports_on_desired_next_hop_device = bfq.interfaceProperties(nodes=hop_that_we_want_to_happen[1]).answer().frame()
-                    relevant_port_dst = ports_on_desired_next_hop_device[ ports_on_desired_next_hop_device['Interface'] == remote_interface]
-
-                    # TODO: much more work to do here, but the key thing (for now) is
-                    # 1. does VLAN-tagging match? (i.e. both trunk or not?)
-                    src_port_switchmode = list(relevant_port_src['Switchport_Mode'])[0]
-                    dst_port_switchmode = list(relevant_port_dst['Switchport_Mode'])[0]
-                    if src_port_switchmode != dst_port_switchmode:
-                        string_to_add = 'Link mismatch (' + str(local_interface) + ':' \
-                                           + str(relevant_port_src['Switchport_Mode']) + ',' + str(remote_interface) \
-                                           + str(relevant_port_dst['Switchport_Mode']) + ')'
-                        explanation.append(string_to_add)
-                    # 2. do the set of support vlans match?
-                    pass
-
-        else:
-            explanation.append('No L1 routes connecting these devices')
-
-    else:
-        # If there is a route, investigate why we didn't use it.
-        pass
-
-    return explanation
-
-
-def run_traceroute(start_location, dst_ip, src_ip):
-    traceroute_results = bfq.bidirectionalTraceroute(startLocation='@enter(' + start_location + ')',
-                                headers=HeaderConstraints(dstIps=dst_ip,
-                                                          srcIps=src_ip))
-    '''
-        traceroute_results = bfq.bidirectionalTraceroute(startLocation='@enter(abc-3850parts[GigabitEthernet1/1/2])',
-                                headers=HeaderConstraints(dstIps='10.10.20.8',
-                                                          srcIps='10.10.20.5'))
-    '''
-
-    forward_hops = traceroute_results.answer().frame().Forward_Traces[0][0].hops
-    try:
-        return_hops = traceroute_results.answer().frame().Reverse_Traces[0][0].hops
-    except:
-        return_hops = None
-    return forward_hops, return_hops
+    matching_routes = []
+    dst_ip_object = ipaddress.ip_address(dst_ip)
+    for row in only_relevant_routing_table_rows.iterrows():
+        ip_addr_and_mask = row[1]['Network']
+        ip_addr_with_mask = ipaddress.ip_network(ip_addr_and_mask, strict=True)
+        if dst_ip_object in ip_addr_with_mask:
+            matching_routes.append( row )
+    return matching_routes
 
 def is_problem_reproduced():
     pass
@@ -847,7 +719,7 @@ if __name__ == "__main__":
     parser.add_argument('--netivus_experiment',dest="netivus_experiment", default=None)
     args = parser.parse_args()
 
-    start_location, dst_ip, src_ip, desired_path = None, None, None, None
+    start_location, dst_ip, src_ip, desired_path, problematic_path = None, None, None, None, None
 
     # Initialize a network and snapshot
     '''
@@ -951,9 +823,13 @@ if __name__ == "__main__":
         start_location = 'ex2200[ge-0/0/13]'
         dst_ip = '8.8.8.8'
         src_ip = '192.168.1.5'
-        desired_path = ['ex2200', 'srx240', 'internet']
+        #desired_path = ['ex2200', 'srx240', 'internet']
+        desired_path = ['RECEIVED:ex2200[ge-0/0/13]', 'OUTGOING:ex2200[ge-0/0/22]', 'RECEIVED:srx240[ge-0/0/1]',
+                        'OUTGOING:srx240[ge-0/0/0]', 'RECEIVED:WAN']
+        problematic_path = ['RECEIVED:ex2200[ge-0/0/13]', 'EXITS_NETWORK:ex2200[vlan.100]']
         #'''
     elif args.netivus_experiment == "Juniper_SRX240_and_EX2200_network_FIXED":
+        # not actually fixed haha
         NETWORK_NAME = "Juniper_SRX240_and_EX2200_network_fixed"
         SNAPSHOT_NAME = "Juniper_SRX240_and_EX2200_network_fixed"
         SNAPSHOT_PATH = "./scenarios/Juniper SRX240 and EX2200 network FIXED"
@@ -1034,6 +910,9 @@ if __name__ == "__main__":
         start_location = 'asa[Outside]'
         dst_ip = "10.3.3.128"
         src_ip = "62.5.3.226"
+        #desired_path = ['RECEIVED:ASA[GigabitEthernet0/0]', 'OUTGOING:ASA[GigabitEthernet0/1]']
+        desired_path = ['RECEIVED:asa[Outside]', 'OUTGOING:asa[Inside]']
+        problematic_path = ['RECEIVED:asa[Outside]', 'DENIED:asa[Inside]']
 
     elif args.netivus_experiment == "private_lan_cannot_access_internet":
         # Cisco 1921 private LAN can't access internet on WAN interface
@@ -1062,7 +941,8 @@ if __name__ == "__main__":
         #'''
 
     no_interactive_flag = True # if true, do not take any input from the operator via the CLI
-    main(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_ip, src_ip, desired_path, no_interactive_flag)
+    main(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_ip, src_ip, desired_path, problematic_path,
+         no_interactive_flag)
 
     #create_gns3_copy()
 
