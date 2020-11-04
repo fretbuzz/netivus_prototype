@@ -21,14 +21,13 @@ import argparse
 import ipaddress
 
 def main(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_ip, src_ip, desired_path, problematic_path,
-         no_interactive_flag, src_loc, dst_loc):
+         no_interactive_flag):
     G_layer_2, G_layer_3, explanation = run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location,
-                                                    dst_ip, src_ip, problematic_path, no_interactive_flag,
-                                                    src_loc, dst_loc)
+                                                    dst_ip, src_ip, problematic_path, no_interactive_flag)
     print("Explanation: " + str(explanation))
 
 def run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_ip, src_ip, problematic_path,
-                no_interactive_flag, src_loc, dst_loc, DEBUG=True, protocol='tcp', type_of_problem='Connection_Accepted'):
+                no_interactive_flag, DEBUG=True, protocol='tcp'):
     #% run startup.py
     #bf_session.host = "172.0.0.1"  # <batfish_service_ip>
     bf_session.host = 'localhost'
@@ -69,7 +68,6 @@ def run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_
         if e.errno != errno.EEXIST:
             raise
 
-    # TODO: move to generalizations file
     G, G_layer_2, G_layer_3, color_map = generate_graph_representations(intermediate_scenario_directory, DEBUG)
 
     plot_graph(G_layer_3, color_map, fig_number=5, title='layer_3_connectivity', layer_2=False)
@@ -98,10 +96,8 @@ def run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_
 
     plot_graph(G_layer_3, color_map, fig_number=5, title='layer_3_connectivity', layer_2=False,
                filename="./outputs/" + NETWORK_NAME + "/layer_3_diagram.png")
-    ####
 
-    explanation = debug_network_problem(start_location, dst_ip, src_ip, protocol, desired_path, problematic_path,
-                                        type_of_problem, src_loc, dst_loc)
+    explanation = debug_network_problem(start_location, dst_ip, src_ip, protocol, desired_path, problematic_path)
 
     return G_layer_2, G_layer_3, explanation
 
@@ -723,7 +719,8 @@ if __name__ == "__main__":
     parser.add_argument('--netivus_experiment',dest="netivus_experiment", default=None)
     args = parser.parse_args()
 
-    start_location, dst_ip, src_ip, desired_path, problematic_path, src_loc, dst_loc = None, None, None, None, None, None, None
+    start_location, dst_ip, src_ip, desired_path, problematic_path = None, None, None, None, None
+
     # Initialize a network and snapshot
     '''
     # IP address conflict (the HotNets example)
@@ -830,8 +827,6 @@ if __name__ == "__main__":
         desired_path = ['RECEIVED:ex2200[ge-0/0/13]', 'OUTGOING:ex2200[ge-0/0/22]', 'RECEIVED:srx240[ge-0/0/1]',
                         'OUTGOING:srx240[ge-0/0/0]', 'RECEIVED:WAN']
         problematic_path = ['RECEIVED:ex2200[ge-0/0/13]', 'EXITS_NETWORK:ex2200[vlan.100]']
-        src_loc = "ex2200[ge-0/0/13]"
-        dst_loc = "srx240[WAN]"
         #'''
     elif args.netivus_experiment == "Juniper_SRX240_and_EX2200_network_FIXED":
         # not actually fixed haha
@@ -947,7 +942,7 @@ if __name__ == "__main__":
 
     no_interactive_flag = True # if true, do not take any input from the operator via the CLI
     main(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_ip, src_ip, desired_path, problematic_path,
-         no_interactive_flag, src_loc, dst_loc)
+         no_interactive_flag)
 
     #create_gns3_copy()
 

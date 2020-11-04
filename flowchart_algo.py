@@ -6,8 +6,7 @@ from pybatfish.datamodel.flow import *
 from pybatfish.question import *
 from pybatfish.question import bfq
 
-def debug_network_problem(start_location, dst_ip, src_ip, protocol, desired_path, problematic_path, type_of_problem,
-                          src_loc, dst_loc):
+def debug_network_problem(start_location, dst_ip, src_ip, protocol, desired_path, problematic_path, type_of_problem):
     while True:
         possible_explanations = []
 
@@ -15,19 +14,12 @@ def debug_network_problem(start_location, dst_ip, src_ip, protocol, desired_path
         is_topology_connected()
 
         # TODO: can the problem be recreated?
-        can_problem_be_recreated_p = can_problem_be_recreated(type_of_problem, start_location, dst_ip, src_ip, src_loc, dst_loc)
+        can_problem_be_recreated_p = can_problem_be_recreated(problematic_path, type_of_problem)
 
         if not can_problem_be_recreated_p:
-            can_we_recreate_problem_now_p, new_headers = explore_header_space_to_recreate_problem()
-            if can_we_recreate_problem_now_p:
-                # TODO; set headers here
-                break
-
             # TODO: if it cannot be recreated, refine (w/ help from collabs)
             should_we_rerun = refine_network_representation_with_collab(problematic_path, type_of_problem)
             if should_we_rerun:
-                # TODO: need to recreate the model now
-                ## maybe do this by calling the function again and
                 continue
 
         # we can recreate the problem, so we can attempt to debug (though we might find out that we cannot later on)
@@ -53,158 +45,36 @@ def debug_network_problem(start_location, dst_ip, src_ip, protocol, desired_path
                 ## TODO: call the model refinement method to and then rerun
                 break
 
-def explore_header_space_to_recreate_problem():
-    return False, None
+        '''
+        forward_hops_interfaces, return_hops_interfaces, mismatch_node_index, forward_hops, return_hops = \
+            find_difference_between_concrete_and_desired_paths(start_location, dst_ip, src_ip, protocol, desired_path)
 
-def can_problem_be_recreated(type_of_problem, start_location, dst_ip, src_ip, src_loc, dst_loc):
-    forward_hops, return_hops = run_traceroute(start_location, dst_ip, src_ip)
+        # TODO: can the problem be reproduced ?? this will require additional information...
+        if problematic_path is not None:
+            problem_could_be_recreated_p = can_we_recreate_the_problem_p(problematic_path, forward_hops_interfaces)
+            if not problem_could_be_recreated_p:
+                potentially_relevant_batfish_errors = not_reproducable_because_missing_feature(forward_hops_interfaces, desired_path, mismatch_node_index)
+                if (potentially_relevant_batfish_errors.size) > 0:
+                    print("these are the batfish errors")
+                    print(potentially_relevant_batfish_errors)
+                    return potentially_relevant_batfish_errors
+                elif not_reproducbile_because_missing_device():
+                    pass
+                elif not_reproducible_because_missing_info():
+                    pass
 
-    end_of_traceroute_forward, did_traceroute_reach_expected_destination_forward_p = \
-        did_traceroute_reach_expected_destination(forward_hops, dst_loc)
+                pass # TODO: perform refinement loop here
 
-    end_of_traceroute_return, did_traceroute_reach_expected_destination_return_p = \
-        did_traceroute_reach_expected_destination(return_hops, src_loc)
+        possible_explanations = generate_explanations(mismatch_node_index, forward_hops_interfaces, desired_path, forward_hops, start_location,
+                                                      dst_ip, src_ip)
 
-    if type_of_problem == "connectivity_accepted":
-        # the problem is that the connection succeeds. therefore the problem is recreated if both directions of the
-        # traceroute reach the src/dst location
-        if did_traceroute_reach_expected_destination_forward_p and did_traceroute_reach_expected_destination_return_p:
-            return True
-        else:
-            return False
-    elif type_of_problem == "connectivity_denied":
-        # the problem is that the connection fails. therefore the problem is recreated if either directions of the
-        # traceroute fails to reach the src/dst location
-        if (not did_traceroute_reach_expected_destination_forward_p) or (not did_traceroute_reach_expected_destination_return_p):
-            return True
-        else:
-            return False
-    else:
-        pass
+        return possible_explanations
+        '''
 
-def did_traceroute_reach_expected_destination(hop_path, expected_dst_loc):
-    last_device = hop_path[-1].node
-    last_interface = 'None'
-    for action in hop_path[-1]:
-        if 'TRANSMITTED' in action.action:
-            last_interface = action.detail.outputInterface
-    if last_interface is None:
-        for action in hop_path[-1]:
-            if 'RECIEVED' in action.action:
-                last_interface = action.detail.inputInterface
-
-    if last_interface is None:
-        raise('last device neither transmitted or recieved the packet')
-
-    end_of_traceroute = last_device + '[' + last_interface + ']'
-
-    if expected_dst_loc == end_of_traceroute:
-        return end_of_traceroute, True
-    else
-        return end_of_traceroute, False
+def can_problem_be_recreated(problematic_path, type_of_problem):
+    pass
 
 def refine_network_representation_with_collab(problematic_path, type_of_problem):
-    print("When attempting to recreate this problem, the traceroute returned this path:", problematic_path)
-
-    # question the tool limitations
-    potential_tool_limitations_needing_refinement = question_reproduction_tool_limitations()
-
-    # question the untrustworthy input
-    potential_untrusthworthy_input_needing_refinement = question_untrustworthy_input()
-
-    all_possible_refinement = potential_tool_limitations_needing_refinement + potential_untrusthworthy_input_needing_refinement
-    refinement_to_try = get_feedback_from_collaborator_on_refinemnt(all_possible_refinement)
-
-    if refinement_to_try:
-        # TODO: must change the netowrk model here, automatically is probably better here, but let's do it manually now
-        print("Please make this change to the input:", refinement_to_try)
-        _ = input('Press enter when the input has been modified')
-        return True
-    else:
-        return False
-
-def get_feedback_from_collaborator_on_refinemnt(all_possible_refinement):
-    sorted_refinements = sorted(all_possible_refinement, key=lambda x: (x[0],))
-
-    for index, sorted_refinement in enumerate(sorted_refinements):
-        print(index, sorted_refinement)
-
-    refinement_to_try = input("[To collaborator] Which of these do you think is the most likely reason for the lack of refinement?")
-    return all_possible_refinement[refinement_to_try]
-
-def question_reproduction_tool_limitations():
-    '''
-    the assumptions due to tool limitations are
-    - All devices can get IP address
-        - approach: no way that we can check for this, so give it a low rating
-    - There are no interface property mismatches
-        - approach: check this using our function and then assign this a high score if it looks possible
-    - The devices with the source and destination ip addresses are connected to the network (they might not be, since they might not show up in the network model)
-        - [is this a real problem?? ignore for now, until we can figure it out later...]
-    - The model can reproduce all the important device features included in the config files (i.e. none of the missing features are important b/c e.g. parsing errors)
-        - approach:  look at the initIssues and (for now) classify all errors as moderate severity
-    '''
-    possible_causes_for_reproduction_failure = []
-
-    # All devices can get IP address
-    possible_causes_for_reproduction_failure.append( (0, 'All devices can get IP address') )
-
-    # There are no interface property mismatches
-    layer1Edges = bfq.layer1Edges().answer().frame()
-    for index, row in layer1Edges.iterrows():
-        outgoing_interface = row['Interface']
-        incoming_interface = row['Remote_Interface']
-        interface_properties = bfq.interfaceProperties().answer().frame()
-        relevant_port_src = interface_properties.loc[interface_properties['Interface'] == outgoing_interface]
-        relevant_port_dst = interface_properties.loc[interface_properties['Interface'] == incoming_interface]
-        interface_mismatch_explanations = check_for_port_mismatchs(relevant_port_src, relevant_port_dst, outgoing_interface, incoming_interface)
-
-        if len(interface_mismatch_explanations) > 0:
-            possible_causes_for_reproduction_failure.append( (10, interface_mismatch_explanations))
-
-    # The devices with the source and destination ip addresses are connected to the network (they might not be, since they might not show up in the network model)
-    # [do this if i still think it makes sense later]
-
-    # The model can reproduce all the important device features included in the config files (i.e. none of the missing features are important b/c e.g. parsing errors)
-    config_errors = bfq.initIssues().answer().frame()
-    for index, row in config_errors.iterrows():
-        possible_causes_for_reproduction_failure.append( (0, row['Details'] + ':' + row['Details']) )
-
-    return possible_causes_for_reproduction_failure
-
-def question_untrustworthy_input():
-    '''
-    the assumptions due to untrusthworthy input are
-    - The model contains all the important devices (i.e. no missing important devices)
-        - approach: there's no way to reason about this, since it is outside the model, so we must
-            assign it as only slightly suspect
-    - The config files contain all the important functionality (i.e. are not missing anything)
-        - approach: any device that we added is suspect. all other devices are slightly suspect
-    - All the necessary properties of the problematic packet headers are specified
-        - approach: all the headers that were inputted are suspect (either wrong or incomplete --
-            while we did explore the space of header options ourselves, it is not definitive)
-    '''
-    possible_causes_for_reproduction_failure = []
-
-    # The model contains all the important devices (i.e. no missing important devices)
-    possible_causes_for_reproduction_failure.append( (0, "Important Devices are Missing"))
-
-    # The config files contain all the important functionality (i.e. are not missing anything)
-    possible_causes_for_reproduction_failure.append( (0, "Parts of existing config files are missing"))
-
-    # All the necessary properties of the problematic packet headers are specified
-    possible_causes_for_reproduction_failure.append( (0, "Parts of the probelmatic packets headers are wrong"))
-    possible_causes_for_reproduction_failure.append( (0, "Necessary parts of the probelmatic packets headers are missing"))
-
-    return possible_causes_for_reproduction_failure
-
-def question_correctness_of_problem_specification():
-    '''
-    the assumptions due to possible problems with the problem specification are
-    - All the necessary properties of the problematic packet headers are specified
-        - approach: all the headers that were inputted are suspect. we can check the others automtically
-            (but should probably still include this as a potential problem)
-    '''
     pass
 
 def generate_desired_paths(desired_path):
@@ -223,41 +93,6 @@ def was_one_root_cause_correct(possible_explanations):
 
 def was_one_root_cause_correct(possible_explanations):
     pass
-
-def run_traceroute(start_location, dst_ip, src_ip):
-    traceroute_results = bfq.bidirectionalTraceroute(startLocation='@enter(' + start_location + ')',
-                                headers=HeaderConstraints(dstIps=dst_ip,
-                                                          srcIps=src_ip))
-    '''
-        traceroute_results = bfq.bidirectionalTraceroute(startLocation='@enter(abc-3850parts[GigabitEthernet1/1/2])',
-                                headers=HeaderConstraints(dstIps='10.10.20.8',
-                                                          srcIps='10.10.20.5'))
-    '''
-
-    forward_hops = traceroute_results.answer().frame().Forward_Traces[0][0].hops
-    try:
-        return_hops = traceroute_results.answer().frame().Reverse_Traces[0][0].hops
-    except:
-        return_hops = None
-    return forward_hops, return_hops
-
-def check_for_port_mismatchs(relevant_port_src, relevant_port_dst, local_interface, remote_interface):
-    explanation = []
-    # TODO: much more work to do here, but the key thing (for now) is
-    # 1. does VLAN-tagging match? (i.e. both trunk or not?)
-    src_port_switchmode = list(relevant_port_src['Switchport_Mode'])[0]
-    dst_port_switchmode = list(relevant_port_dst['Switchport_Mode'])[0]
-    if src_port_switchmode != dst_port_switchmode:
-        string_to_add = 'Link mismatch (' + str(local_interface) + ':' \
-                        + str(relevant_port_src['Switchport_Mode']) + ',' + str(remote_interface) \
-                        + str(relevant_port_dst['Switchport_Mode']) + ')'
-        explanation.append(string_to_add)
-    # 2. do the set of support vlans match?
-    pass  # TODO
-    # 3. does the type of interface supported match
-    pass # TODO
-
-    return explanation
 ###################################################################################
 ###################################################################################
 
@@ -492,3 +327,46 @@ def generate_explanations_for_lack_of_routes(hop_that_happened, hop_that_we_want
         explanation.append('No L1 routes connecting these devices')
 
     return explanation
+
+def check_for_port_mismatchs(relevant_port_src, relevant_port_dst, local_interface, remote_interface):
+    '''
+
+    :param relevant_port_src:  from bfq.interfacePropeties().answer().frame()
+    :param relevant_port_dst: from bfq.interfacePropeties().answer().frame()
+    :param local_interface: device_name[port_name]
+    :param remote_interface: device_name[port_name]
+    :return:
+    '''
+    explanation = []
+    # TODO: much more work to do here, but the key thing (for now) is
+    # 1. does VLAN-tagging match? (i.e. both trunk or not?)
+    src_port_switchmode = list(relevant_port_src['Switchport_Mode'])[0]
+    dst_port_switchmode = list(relevant_port_dst['Switchport_Mode'])[0]
+    if src_port_switchmode != dst_port_switchmode:
+        string_to_add = 'Link mismatch (' + str(local_interface) + ':' \
+                        + str(relevant_port_src['Switchport_Mode']) + ',' + str(remote_interface) \
+                        + str(relevant_port_dst['Switchport_Mode']) + ')'
+        explanation.append(string_to_add)
+    # 2. do the set of support vlans match?
+    pass  # TODO
+    # 3. does the type of interface supported match
+    pass # TODO
+
+    return explanation
+
+def run_traceroute(start_location, dst_ip, src_ip):
+    traceroute_results = bfq.bidirectionalTraceroute(startLocation='@enter(' + start_location + ')',
+                                headers=HeaderConstraints(dstIps=dst_ip,
+                                                          srcIps=src_ip))
+    '''
+        traceroute_results = bfq.bidirectionalTraceroute(startLocation='@enter(abc-3850parts[GigabitEthernet1/1/2])',
+                                headers=HeaderConstraints(dstIps='10.10.20.8',
+                                                          srcIps='10.10.20.5'))
+    '''
+
+    forward_hops = traceroute_results.answer().frame().Forward_Traces[0][0].hops
+    try:
+        return_hops = traceroute_results.answer().frame().Reverse_Traces[0][0].hops
+    except:
+        return_hops = None
+    return forward_hops, return_hops
