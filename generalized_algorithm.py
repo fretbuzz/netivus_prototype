@@ -112,7 +112,7 @@ def find_layer_of_routing_error():
 def run_batfish_traceroute():
     return None, None
 
-def can_probem_be_recreated(traceroute_path_forward, traceroute_path_back, type_of_problem)
+def can_probem_be_recreated(traceroute_path_forward, traceroute_path_back, type_of_problem):
     return None, None
 
 def get_potential_desired_paths():
@@ -121,7 +121,7 @@ def get_potential_desired_paths():
 def remediate_network_model(type_of_failure):
     return None
 
-def find_device_with_different_behavior(cur_potential_desired_path, traceroute_path_forward)
+def find_device_with_different_behavior(cur_potential_desired_path, traceroute_path_forward):
     return None
 
 def which_part_of_device_behaves_differently(traceroute_path_forward, device_where_behavior_differs):

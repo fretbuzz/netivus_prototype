@@ -5,8 +5,10 @@ from pybatfish.datamodel.answer import *
 from pybatfish.datamodel.flow import *
 from pybatfish.question import *
 from pybatfish.question import bfq
+from augment_network_representation import generate_graph_representations
 
-def debug_network_problem(start_location, dst_ip, src_ip, protocol, desired_path, problematic_path, type_of_problem):
+def debug_network_problem(start_location, end_location, dst_ip, src_ip, protocol, desired_path, type_of_problem,
+                          intermediate_scenario_directory, NETWORK_NAME, SNAPSHOT_NAME):
     while True:
         possible_explanations = []
 
@@ -14,11 +16,11 @@ def debug_network_problem(start_location, dst_ip, src_ip, protocol, desired_path
         is_topology_connected()
 
         # TODO: can the problem be recreated?
-        can_problem_be_recreated_p = can_problem_be_recreated(problematic_path, type_of_problem)
+        can_problem_be_recreated_p, problematic_path_forward, problematic_path_return = can_problem_be_recreated(type_of_problem, start_location, dst_ip, src_ip, end_location)
 
         if not can_problem_be_recreated_p:
             # TODO: if it cannot be recreated, refine (w/ help from collabs)
-            should_we_rerun = refine_network_representation_with_collab(problematic_path, type_of_problem)
+            should_we_rerun = refine_network_representation_with_collab(problematic_path_forward, type_of_problem)
             if should_we_rerun:
                 continue
 
@@ -31,18 +33,20 @@ def debug_network_problem(start_location, dst_ip, src_ip, protocol, desired_path
         for desired_path in desired_paths:
             # TODO: for a given problematic path, guess which device is responsible
             ## rank these in order from most likely responsible to least likely responsible
-            responsible_devices = guess_which_devices_are_responsible(problematic_path, desired_path)
+            responsible_devices = guess_which_devices_are_responsible(problematic_path_forward, desired_path)
 
             for responsible_device in responsible_devices:
                 # TODO: for a given problematic path + device, blame the particular part of the device
-                potential_explanation = diagnose_root_cause(desired_path, problematic_path, responsible_device)
+                potential_explanation = diagnose_root_cause(desired_path, problematic_path_forward, responsible_device)
                 possible_explanations.append( potential_explanation )
 
             was_one_root_cause_correct_p, correct_explanation, must_revise_network_model = was_one_root_cause_correct(possible_explanations)
             if was_one_root_cause_correct_p:
                 return correct_explanation
             elif must_revise_network_model:
-                ## TODO: call the model refinement method to and then rerun
+                ## TODO: the model will have already been refined, so now we just must recreate the model by rerunning Batfish
+                generate_graph_representations(intermediate_scenario_directory, False, NETWORK_NAME, SNAPSHOT_NAME)
+                ####
                 break
 
         '''
@@ -71,14 +75,78 @@ def debug_network_problem(start_location, dst_ip, src_ip, protocol, desired_path
         return possible_explanations
         '''
 
-def can_problem_be_recreated(problematic_path, type_of_problem):
-    pass
+def can_problem_be_recreated(type_of_problem, start_location, dst_ip, src_ip, end_location):
+    forward_hops, return_hops = run_traceroute(start_location, dst_ip, src_ip)
+    #final_node = forward_hops[-1].node
+    forward_final_interface = find_final_interface(forward_hops, forward=True)
+    return_final_interface = find_final_interface(return_hops, forward=False)
+
+    # TODO: run the comparison check here...
+    if type_of_problem == "Connecitivity_Blocked":
+        if forward_final_interface == end_location and return_final_interface == start_location:
+            # if the problem is that we CANNOT reach the destination, then we if we cam reach the destination
+            ## we cannot recreate the problem
+            return False, forward_hops, return_hops
+        else:
+            # if the problem is that we CANNOT reach the destination, then we if we cannot reach the destination
+            ## we can recreate the problem
+            return True, forward_hops, return_hops
+
+        pass
+    elif type_of_problem =="Connecitivity_Allowed":
+        if forward_final_interface == end_location and return_final_interface == start_location:
+            # if the problem is that we CAN reach the destination, then we if we can reach the destination
+            ## we can recreate the problem
+            return True, forward_hops, return_hops
+        else:
+            # if the problem is that we CAN reach the destination, then we if we cannot reach the destination
+            ## we cannot recreate the problem
+            return False, forward_hops, return_hops
+    else:
+        raise("Unsupported type_of_problem")
+
+    # return can_problem_be_recreated_p, problematic_path
+
+def find_final_interface(forward_hops, forward):
+    final_node = forward_hops[-1]
+    # not sure if the final behavior will be recieving or transmitting, so we must scan for both
+    final_interface = None
+    for step in final_node.steps:
+        if forward:
+            if step.action == "TRANSMITTED":
+                final_interface = final_node.node + '[' + step.detail.outputInterface + ']'
+        else:
+            if step.action == "RECEIVED":
+                final_interface = final_node.node + '[' + step.detail.inputInterface + ']'
+    if final_interface is None:
+        for step in final_node.steps:
+            if forward:
+                if step.action == "RECEIVED":
+                    final_interface = final_node.node + '[' + step.detail.inputInterface + ']'
+            else:
+                if step.action == "TRANSMITTED":
+                    final_interface = final_node.node + '[' + step.detail.outputInterface + ']'
+
+    return final_interface
 
 def refine_network_representation_with_collab(problematic_path, type_of_problem):
     pass
 
-def generate_desired_paths(desired_path):
-    return [desired_path]
+def generate_desired_paths(desired_path, intermediate_scenario_directory, DEBUG, NETWORK_NAME, SNAPSHOT_NAME):
+    '''
+    layer1Edges = bfq.layer1Edges().answer().frame()
+    for l1_route in layer1Edges.iterrows():
+        remote_interface = l1_route[1]['Remote_Interface']
+        local_interface = l1_route[1]['Interface']
+    '''
+
+    if desired_path is not None:
+        return [desired_path]
+    else:
+        # TODO: generate possible desired paths
+        _, G_layer_2, _, _ = generate_graph_representations(intermediate_scenario_directory, DEBUG, NETWORK_NAME,
+                                                            SNAPSHOT_NAME)
+        return None
 
 def guess_which_devices_are_responsible(problematic_path, desired_path):
     pass

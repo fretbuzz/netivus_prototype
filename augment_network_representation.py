@@ -2,14 +2,13 @@ import networkx as nx
 import pandas as pd
 from pybatfish.client.commands import bf_set_network, bf_init_snapshot
 from pybatfish.question import load_questions, bfq
-from main import NETWORK_NAME, SNAPSHOT_NAME
 import matplotlib.pyplot as plt
 from visualization import plot_graph
 import os, json, shutil
 
 def discover_important_device_info(G,  color_map, title, figname, intermediate_scenario_directory, DEBUG,
                                    intermediate_scenario_directory_hosts, level_1_topology_path, intermediate_scenario_directory_iptables,
-                                   layer_2=True):
+                                   NETWORK_NAME, SNAPSHOT_NAME, layer_2=True):
     interface_information_inputted_manually = []
     print("These are the nodes in the graph:")
     for node in G.nodes():
@@ -61,7 +60,7 @@ def discover_important_device_info(G,  color_map, title, figname, intermediate_s
             exit(1)
 
         ## regenerate graphs here
-        G, G_layer_2, G_layer_3, color_map = generate_graph_representations(intermediate_scenario_directory, DEBUG)
+        G, G_layer_2, G_layer_3, color_map = generate_graph_representations(intermediate_scenario_directory, DEBUG, NETWORK_NAME, SNAPSHOT_NAME)
         ## TODO: add third line that shows type of the node (? maybe ?)
         # hostname, gateway_ip, host_ip, subnet_mask
         attrs = {node_value: {'type': type_of_node}}
@@ -74,8 +73,10 @@ def discover_important_device_info(G,  color_map, title, figname, intermediate_s
 
     return G, interface_information_inputted_manually
 
-def connect_nodes_via_manual_analysis(title, figname, intermediate_scenario_directory, DEBUG, level_1_topology_path, layer_2=True):
-    G, G_layer_2, G_layer_3, color_map = generate_graph_representations(intermediate_scenario_directory, DEBUG)
+def connect_nodes_via_manual_analysis(title, figname, intermediate_scenario_directory, DEBUG, level_1_topology_path,
+                                      NETWORK_NAME, SNAPSHOT_NAME, layer_2=True):
+
+    G, G_layer_2, G_layer_3, color_map = generate_graph_representations(intermediate_scenario_directory, DEBUG, NETWORK_NAME, SNAPSHOT_NAME)
     connected_interfaces_via_manual_analysis = []
     print("These are the nodes in the graph:")
     for node in G_layer_2.nodes():
@@ -114,7 +115,8 @@ def connect_nodes_via_manual_analysis(title, figname, intermediate_scenario_dire
         hostname2, interface2 = split_interface_name(value2)
         return_value = generate_layer_1_topology_config_file(level_1_topology_path, hostname1, interface1, hostname2, interface2)
         # now re-run the graph generation pipeline using our updated topology files
-        G, G_layer_2, G_layer_3, color_map = generate_graph_representations(intermediate_scenario_directory, DEBUG)
+        G, G_layer_2, G_layer_3, color_map = generate_graph_representations(intermediate_scenario_directory, DEBUG,
+                                                                            NETWORK_NAME, SNAPSHOT_NAME)
 
 
         ''' # old code...
@@ -140,7 +142,7 @@ def connect_nodes_via_manual_analysis(title, figname, intermediate_scenario_dire
     return G, G_layer_2, G_layer_3, color_map, connected_interfaces_via_manual_analysis
 
 
-def generate_graph_representations(intermediate_scenario_directory, DEBUG):
+def generate_graph_representations(intermediate_scenario_directory, DEBUG, NETWORK_NAME, SNAPSHOT_NAME):
     bf_set_network(NETWORK_NAME)
     bf_init_snapshot(intermediate_scenario_directory, name=SNAPSHOT_NAME, overwrite=True)
 

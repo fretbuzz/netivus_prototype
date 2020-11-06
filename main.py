@@ -1,9 +1,9 @@
 from pybatfish.client.commands import *
 from pybatfish.question import bfq
 
-from augment_network_representation import generate_graph_representations, discover_important_device_info, connect_nodes_via_manual_analysis
 from flowchart_algo import debug_network_problem
 from visualization import plot_graph
+from augment_network_representation import connect_nodes_via_manual_analysis, generate_graph_representations, discover_important_device_info
 
 import networkx as nx
 import os, errno
@@ -15,13 +15,15 @@ import ipaddress
 
 
 def main(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_ip, src_ip, desired_path, problematic_path,
-         no_interactive_flag):
+         no_interactive_flag, type_of_problem, end_location):
     G_layer_2, G_layer_3, explanation = run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location,
-                                                    dst_ip, src_ip, problematic_path, no_interactive_flag)
+                                                    dst_ip, src_ip, problematic_path, no_interactive_flag, type_of_problem,
+                                                    end_location)
     print("Explanation: " + str(explanation))
 
 def run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_ip, src_ip, problematic_path,
-                no_interactive_flag, DEBUG=True, protocol='tcp'):
+                no_interactive_flag, type_of_problem, end_location, DEBUG=True, protocol='tcp'):
+
     #% run startup.py
     #bf_session.host = "172.0.0.1"  # <batfish_service_ip>
     bf_session.host = 'localhost'
@@ -62,7 +64,7 @@ def run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_
         if e.errno != errno.EEXIST:
             raise
 
-    G, G_layer_2, G_layer_3, color_map = generate_graph_representations(intermediate_scenario_directory, DEBUG)
+    G, G_layer_2, G_layer_3, color_map = generate_graph_representations(intermediate_scenario_directory, DEBUG, NETWORK_NAME, SNAPSHOT_NAME)
 
     plot_graph(G_layer_3, color_map, fig_number=5, title='layer_3_connectivity', layer_2=False)
     plot_graph(G_layer_2, color_map, fig_number=4, title='layer_2_connectivity', layer_2=True)
@@ -76,22 +78,24 @@ def run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_
                                                                                     level_1_topology_path=level_1_topology_path,
                                                                                     intermediate_scenario_directory=intermediate_scenario_directory,
                                                                                     DEBUG=DEBUG,
-                                                                                    intermediate_scenario_directory_iptables=intermediate_scenario_directory_iptables)
+                                                                                    intermediate_scenario_directory_iptables=intermediate_scenario_directory_iptables,
+                                                                                    NETWORK_NAME = NETWORK_NAME,
+                                                                                    SNAPSHOT_NAME = SNAPSHOT_NAME)
 
         G, G_layer_2, G_layer_3, color_map, manually_connected_layer2_nodes = \
             connect_nodes_via_manual_analysis(title='layer_2_connectivity',
                                               figname="./outputs/" + NETWORK_NAME + "/layer_2_diagram.png",
                                               intermediate_scenario_directory=intermediate_scenario_directory,
                                               level_1_topology_path=level_1_topology_path,
-                                              DEBUG=DEBUG)
+                                              DEBUG=DEBUG,
+                                              NETWORK_NAME=NETWORK_NAME,
+                                              SNAPSHOT_NAME=SNAPSHOT_NAME)
 
-    ## TODO: hook in a GNS3 interaction module here that can geneate the configs as-needed
-    # (ignore l3 functionality entirely for now).
+    plot_graph(G_layer_3, color_map, fig_number=5, title='layer_3_connectivity',
+               layer_2=False, filename="./outputs/" + NETWORK_NAME + "/layer_3_diagram.png")
 
-    plot_graph(G_layer_3, color_map, fig_number=5, title='layer_3_connectivity', layer_2=False,
-               filename="./outputs/" + NETWORK_NAME + "/layer_3_diagram.png")
-
-    explanation = debug_network_problem(start_location, dst_ip, src_ip, protocol, desired_path, problematic_path)
+    explanation = debug_network_problem(start_location, end_location, dst_ip, src_ip, protocol, desired_path,
+                                        type_of_problem, intermediate_scenario_directory, NETWORK_NAME, SNAPSHOT_NAME)
 
     return G_layer_2, G_layer_3, explanation
 
@@ -145,7 +149,11 @@ if __name__ == "__main__":
     parser.add_argument('--netivus_experiment',dest="netivus_experiment", default=None)
     args = parser.parse_args()
 
-    start_location, dst_ip, src_ip, desired_path, problematic_path = None, None, None, None, None
+    start_location, end_location, dst_ip, src_ip, desired_path, problematic_path, type_of_problem = None, None, None, None, None, None, None
+
+    # type_of_problem has two types:
+    ## Connecitivity_Allowed  : connectivity was allowed, but should be blocked
+    ## Connecitivity_Blocked : connectivity was blocked, but should be allowed
 
     # Initialize a network and snapshot
     '''
@@ -253,6 +261,8 @@ if __name__ == "__main__":
         desired_path = ['RECEIVED:ex2200[ge-0/0/13]', 'OUTGOING:ex2200[ge-0/0/22]', 'RECEIVED:srx240[ge-0/0/1]',
                         'OUTGOING:srx240[ge-0/0/0]', 'RECEIVED:WAN']
         problematic_path = ['RECEIVED:ex2200[ge-0/0/13]', 'EXITS_NETWORK:ex2200[vlan.100]']
+        type_of_problem = 'Connecitivity_Blocked'
+        end_location = 'ex2200[WAN]'
         #'''
     elif args.netivus_experiment == "Juniper_SRX240_and_EX2200_network_FIXED":
         # not actually fixed haha
@@ -368,7 +378,7 @@ if __name__ == "__main__":
 
     no_interactive_flag = True # if true, do not take any input from the operator via the CLI
     main(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_ip, src_ip, desired_path, problematic_path,
-         no_interactive_flag)
+         no_interactive_flag, type_of_problem, end_location)
 
     #create_gns3_copy()
 
