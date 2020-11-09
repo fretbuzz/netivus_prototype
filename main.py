@@ -95,7 +95,7 @@ def run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_
                layer_2=False, filename="./outputs/" + NETWORK_NAME + "/layer_3_diagram.png")
 
     explanation = debug_network_problem(start_location, end_location, dst_ip, src_ip, protocol, desired_path,
-                                        type_of_problem, intermediate_scenario_directory, NETWORK_NAME, SNAPSHOT_NAME)
+                                        type_of_problem, intermediate_scenario_directory, NETWORK_NAME, SNAPSHOT_NAME, DEBUG)
 
     return G_layer_2, G_layer_3, explanation
 
@@ -258,8 +258,8 @@ if __name__ == "__main__":
         dst_ip = '8.8.8.8'
         src_ip = '192.168.1.5'
         #desired_path = ['ex2200', 'srx240', 'internet']
-        desired_path = ['RECEIVED:ex2200[ge-0/0/13]', 'OUTGOING:ex2200[ge-0/0/22]', 'RECEIVED:srx240[ge-0/0/1]',
-                        'OUTGOING:srx240[ge-0/0/0]', 'RECEIVED:WAN']
+        desired_path = ['RECEIVED:ex2200[ge-0/0/13]', 'TRANSMITED:ex2200[ge-0/0/22]', 'TRANSMITED:srx240[ge-0/0/1]',
+                        'TRANSMITED:srx240[ge-0/0/0]', 'RECEIVED:WAN']
         problematic_path = ['RECEIVED:ex2200[ge-0/0/13]', 'EXITS_NETWORK:ex2200[vlan.100]']
         type_of_problem = 'Connecitivity_Blocked'
         end_location = 'ex2200[WAN]'
