@@ -92,6 +92,9 @@ def run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_
                                               SNAPSHOT_NAME=SNAPSHOT_NAME)
 
     plot_graph(G_layer_3, color_map, fig_number=5, title='layer_3_connectivity',
+               layer_2=False, filename="./outputs/" + NETWORK_NAME + "/interface_connectivity_diagram.png")
+
+    plot_graph(G, color_map, fig_number=6, title='Interace_connectivity',
                layer_2=False, filename="./outputs/" + NETWORK_NAME + "/layer_3_diagram.png")
 
     explanation = debug_network_problem(start_location, end_location, dst_ip, src_ip, protocol, desired_path,
@@ -99,49 +102,8 @@ def run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_
 
     return G_layer_2, G_layer_3, explanation
 
-def find_all_routes_with_correct_next_hop(hop_that_happened, hop_that_we_want_to_happen, matching_routes):
-    device_that_routed_packet = hop_that_happened[0]
-    routes_with_correct_next_hop = []
-    vlan_properties = bfq.switchedVlanProperties(nodes=device_that_routed_packet).answer().frame()
-    for matching_route in matching_routes:
-        network, next_hop_ip, next_hop_interface = matching_route[1]['Network'], matching_route[1]['Next_Hop_IP'], \
-                                                   matching_route[1]['Next_Hop_Interface']
-        # TODO: what does it mean  when the next_hop_interface is dynamic (looks like it typically occurs when there is a concrete next_hop_ip)
+def specify_nodes_to_remove_in_graph(G):
 
-        if 'vlan' in next_hop_interface.lower():
-            relevant_vlan_details = vlan_properties.loc[vlan_properties['VLAN_ID'] == next_hop_interface]
-            vlan_interface_details = relevant_vlan_details['Interfaces']
-            # okay,so now we have a bunch of corresponding interfaces that the packet could go out on. Do any of these go to the
-            # device that we want?
-            layer1_edges = bfq.layer1Edges(nodes=device_that_routed_packet).answer().frame()
-            routing_entry_takes_us_where_we_want_to_go = False
-            for edge in layer1_edges.iterrows():
-                remote_interface = edge[1]['Remote_Interface']
-                remote_node, remote_port = remote_interface.hostname, remote_interface.interface
-                # if this is the correct hop
-                if remote_node == hop_that_we_want_to_happen[1]:
-                    routing_entry_takes_us_where_we_want_to_go = True
-                if routing_entry_takes_us_where_we_want_to_go:
-                    routes_with_correct_next_hop.append(matching_route)
-                    break
-
-    return routes_with_correct_next_hop
-
-def find_all_routes_that_match(hop_that_happened):
-    device_that_routed_packet = hop_that_happened[0]
-    routing_table_df = bfq.routes().answer().frame().sort_values(by="Node")
-    only_relevant_routing_table_rows = routing_table_df[routing_table_df['Node'] == device_that_routed_packet]
-
-    matching_routes = []
-    dst_ip_object = ipaddress.ip_address(dst_ip)
-    for row in only_relevant_routing_table_rows.iterrows():
-        ip_addr_and_mask = row[1]['Network']
-        ip_addr_with_mask = ipaddress.ip_network(ip_addr_and_mask, strict=True)
-        if dst_ip_object in ip_addr_with_mask:
-            matching_routes.append( row )
-    return matching_routes
-
-def is_problem_reproduced():
     pass
 
 if __name__ == "__main__":
@@ -358,6 +320,20 @@ if __name__ == "__main__":
         start_location = 'cisco-1-c[GigabitEthernet0/0]'  # TODO
         dst_ip = '8.8.8.8'  # TODO
         src_ip = '10.1.9.22'  # TODO
+    elif args.netivus_experiment == "synthetic_base_network":
+        NETWORK_NAME = "synthetic_base_network"
+        SNAPSHOT_NAME = "synthetic_base_network"
+        SNAPSHOT_PATH = "./synthetic_scenarios/base_Intenionet_network"
+    elif args.netivus_experiment == "synthetic_explicit_acl_drop_packets":
+        pass
+    elif args.netivus_experiment == "synthetic_interface_mismatch_vlan_tagging":
+        pass
+    elif args.netivus_experiment == "synthetic_route_pkts_the_wrong_way":
+        pass
+    elif args.netivus_experiment == "synthetic_acl_shadowed":
+        pass
+    elif args.netivus_experiment == "synthetic_bi_directional_nat":
+        pass
     else:
         ########## the following are examples that I am working on.... #########
 

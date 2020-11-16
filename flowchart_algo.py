@@ -7,6 +7,7 @@ from pybatfish.question import *
 from pybatfish.question import bfq
 from augment_network_representation import generate_graph_representations
 import networkx as nx
+import ipaddress
 
 def debug_network_problem(start_location, end_location, dst_ip, src_ip, protocol, desired_path, type_of_problem,
                           intermediate_scenario_directory, NETWORK_NAME, SNAPSHOT_NAME, DEBUG):
@@ -52,7 +53,7 @@ def debug_network_problem(start_location, end_location, dst_ip, src_ip, protocol
 
             for responsible_device in responsible_devices:
                 # TODO: for a given problematic path + device, blame the particular part of the device
-                potential_explanation = diagnose_root_cause(desired_path, problematic_path_forward, responsible_device)
+                potential_explanation = diagnose_root_cause(desired_path, path_to_debug, responsible_device)
                 possible_explanations.append( potential_explanation )
 
             was_one_root_cause_correct_p, correct_explanation, must_revise_network_model = was_one_root_cause_correct(possible_explanations)
@@ -102,7 +103,7 @@ def can_problem_be_recreated(type_of_problem, start_location, dst_ip, src_ip, en
     should_we_debug_the_path_forward = None #### if we can
     can_we_recreate_the_problem_p = None
 
-    # TODO: run the comparison check here...
+    # run the comparison check here...
     if type_of_problem == "Connecitivity_Blocked":
         if src_can_reach_dst_p and dst_can_reach_src_p:
             # if the problem is that we CANNOT reach the destination, then if we cam reach the destination
@@ -191,8 +192,10 @@ def generate_desired_paths(desired_path, intermediate_scenario_directory, DEBUG,
                            src_loc, dest_loc, traceroute_path):
 
     if desired_path is not None:
+        # we need to get the graph-based
         return [desired_path]
     else:
+        ## TODO: *** probably wanna modify this so that interfaces are represented in the graph ***
         # generate possible desired paths and heuristically rank how likely they are
         _, G_layer_1, _, _ = generate_graph_representations(intermediate_scenario_directory, DEBUG, NETWORK_NAME,
                                                             SNAPSHOT_NAME)
@@ -231,15 +234,19 @@ def guess_which_devices_are_responsible(traceroute_path, desired_path, given_des
     # the last device in the traceroute path
     ## Specifically, check the input and output...
 
+
+    #### TODO: need to redo this section so that everything is like the first part (And NOT like the second part!)
     if given_desired_path_p:
         interface_by_interface_traceroute_path = construct_interface_by_interface_hops(traceroute_path)
-        potentially_responsible_devices = guess_which_devices_are_responsible_user_specified_desired_path(interface_by_interface_traceroute_path, desired_path)
+        potentially_responsible_devices = guess_which_devices_are_responsible_user_specified_desired_path(interface_by_interface_traceroute_path, desired_path,
+                                                                                                          traceroute_path)
     else:
         potentially_responsible_devices = guess_which_devices_are_responsible_all_paths_system_generated(traceroute_path, desired_path)
 
     return potentially_responsible_devices
 
-def guess_which_devices_are_responsible_user_specified_desired_path(interface_by_interface_traceroute_path, interface_by_interface_desired_path):
+def guess_which_devices_are_responsible_user_specified_desired_path(interface_by_interface_traceroute_path, interface_by_interface_desired_path,
+                                                                    traceroute_path):
     # use the same general logic specified in the parent function
     potentially_responsible_devices = []
     found_responsible_node = False
@@ -249,10 +256,10 @@ def guess_which_devices_are_responsible_user_specified_desired_path(interface_by
         traceroute_interface = interface_by_interface_traceroute_path[index]
         desired_interface = interface_by_interface_desired_path[index]
 
-        # are the interfaces the same?
+        # are the interfaces the same? if they are not, then we need to assign blame to the responsible device
         if traceroute_interface != desired_interface:
-            # if outgoing, blame this device
-            action, device_and_interface = traceroute_interface.split([':'])
+            # if packet si outgoing, this device is to blame
+            action, device_and_interface = traceroute_interface.split(':')
             if action == 'TRANSMITTED' or 'OUTGOING':
                 potentially_responsible_devices.append( device_and_interface.split('[')[0] )
                 found_responsible_node = True
@@ -265,24 +272,42 @@ def guess_which_devices_are_responsible_user_specified_desired_path(interface_by
                 responsible_index = index
                 break
 
-    ### TODO TODO TODO TODO:: FINISH THIS FUNCTION (just details to work out...)
+    #  if we haven't found the node where behavior differs, the last node in the shared path is responsible
     if not found_responsible_node:
+        ## NOTE: this two cases are the same (could/should probably simplify at some point...)
         if len(interface_by_interface_traceroute_path) < len(interface_by_interface_desired_path):
-            potentially_responsible_devices.append(interface_by_interface_traceroute_path[len(interface_by_interface_traceroute_path)].node)
+            # if desired path is longer, but agrees in behavior up to end of traceroute_path, then the last shared node is responsible
+            last_interface_by_interface_node = get_node_name(   interface_by_interface_traceroute_path[len(interface_by_interface_traceroute_path) - 1]   )
+            potentially_responsible_devices.append(last_interface_by_interface_node)
             responsible_index = len(interface_by_interface_traceroute_path)
         else:
             # if traceroute path is longer, but agrees in behavior up to end of desired_path, then the last shared node is responsible
-            potentially_responsible_devices.append(interface_by_interface_traceroute_path[len(interface_by_interface_desired_path)].node)
+            last_shareD_interface_by_interface_node = get_node_name(   interface_by_interface_traceroute_path[len(interface_by_interface_desired_path) - 1]   )
+            potentially_responsible_devices.append( last_shareD_interface_by_interface_node )
             responsible_index = len(interface_by_interface_desired_path)
 
 
     # Now, let's find any devices that transform that packet... look at all devices that come before this in the list
     ## of devices and scan the list of operations for any kind of packet transforms
-    for i in range(0, responsible_index):
+
+    # first we must map the interface index to the traceroute index, so that we can use the more detailed info present there
+    traceroute_node_index = None #sentinal value
+    responsible_node_name = get_node_name( interface_by_interface_traceroute_path[responsible_index] )
+    for tr_index, traceroute_hop in enumerate(traceroute_path[:responsible_index]):
+        if traceroute_hop.node == responsible_node_name:
+            traceroute_node_index = tr_index
+
+    for i in range(0, traceroute_node_index):
         if any_transformations_present(traceroute_path[i]):
             potentially_responsible_devices.append( traceroute_path[i].node)
 
     return potentially_responsible_devices
+
+def get_node_name(activity_and_interface_str):
+    return activity_and_interface_str.split(':')[1].split('[')[0]
+
+def get_node_activity(activity_and_interface_str):
+    return activity_and_interface_str.split(':')[0]
 
 def guess_which_devices_are_responsible_all_paths_system_generated(traceroute_path, desired_path):
     potentially_responsible_devices = []
@@ -317,11 +342,11 @@ def guess_which_devices_are_responsible_all_paths_system_generated(traceroute_pa
             break
     if not found_responsible_node:
         if len(traceroute_path) < len(desired_path):
-            potentially_responsible_devices.append(traceroute_path[len(traceroute_path)].node)
+            potentially_responsible_devices.append(traceroute_path[len(traceroute_path) - 1].node)
             responsible_index = len(traceroute_path)
         else:
             # if traceroute path is longer, but agrees in behavior up to end of desired_path, then the last shared node is responsible
-            potentially_responsible_devices.append(traceroute_path[len(desired_path)].node)
+            potentially_responsible_devices.append(traceroute_path[len(desired_path) - 1].node)
             responsible_index = len(desired_path)
 
 
@@ -340,8 +365,84 @@ def any_transformations_present(cur_hop):
             return True
     return False
 
-def diagnose_root_cause(desired_path, problematic_path, responsible_device):
-    pass
+def diagnose_root_cause(desired_path, traceroute_path, responsible_device):
+    ## TODO: I need to write this entire function...
+    explanation = []
+
+    # Q: Is routing behavior different?
+    if acl_behavior_diferent_p(traceroute_path, desired_path, responsible_device):
+        # TODO: this whole section is todo
+        pass
+    # Q: Is ACL behavior different?
+    elif routing_behavior_different_p(traceroute_path, desired_path, responsible_device):
+        # TODO: this whole section is todo
+        explanations_about_routes = generate_explanations_for_different_routing(traceroute_path, desired_path, responsible_device)
+        explanation.extend( explanations_about_routes )
+    else:
+        # TODO: this section needs to at least include a function to blame (and assign blame!) to transformation parts, such
+        ## as NATs
+        pass
+
+    return explanation
+
+def acl_behavior_diferent_p(traceroute_path, desired_path, responsible_device):
+    mismatch_node_index_tr = find_corresponding_index(traceroute_path, responsible_device)
+    mismatch_tr_hop = traceroute_path[mismatch_node_index_tr]
+
+    # We need to find if the desired path includes an outgoing interface on this node
+    does_desired_path_have_outgoing_interface_on_node = does_desired_path_hop_have_outgoing_interface(desired_path, responsible_device)
+
+    # TODO : eventually need to modify the desired_path graph generation representation... but for now it is okay b/c we are using inputted desired_path
+    does_traceroute_have_outgoing_interface_on_node   = does_traceroute_hop_have_outgoing_interface( mismatch_tr_hop )
+    # okay, let's handle determining whether or not the ACL behavior is incorrect.
+    ## First, is there an outgoing hop in the desired_path but packet is blocked by ACL in current device -> then blame ACL (for blocking)
+    if does_desired_path_have_outgoing_interface_on_node and not does_traceroute_have_outgoing_interface_on_node:
+        return True
+    ## Second, is there no outgoing interface in the desired_path but there is in the current tracereoute_path -> blame ACL (for allowing)
+    if not does_desired_path_have_outgoing_interface_on_node and does_traceroute_have_outgoing_interface_on_node:
+        return True
+    ## Else, the ACL is not the problem
+    return False
+
+def does_desired_path_hop_have_outgoing_interface(desired_path, responsible_device):
+    does_desired_path_have_outgoing_interface_on_node = False
+    for desired_activity_and_interface in desired_path:
+        desired_node = get_node_name(desired_activity_and_interface)
+        if desired_node == responsible_device:
+            node_activity = get_node_activity(desired_activity_and_interface)
+            if node_activity == 'FORWARD' or node_activity == "TRANSMITED" or node_activity == "OUTGOING" or node_activity == "TRANSMITTED":
+                does_desired_path_have_outgoing_interface_on_node = True
+    return does_desired_path_have_outgoing_interface_on_node
+
+def does_traceroute_hop_have_outgoing_interface(tr_hop):
+    for step in tr_hop.steps:
+        if step.action == 'FORWARD' or step.action == "TRANSMITED" or step.action == "OUTGOING"  or step.action  == "TRANSMITTED":
+            return True
+    return False
+
+def routing_behavior_different_p(traceroute_path, desired_path, responsible_device):
+
+    # okay, now we need to determine if the difference in behavior is due to routing behavior.
+    # We do this in the same way that we handle acl_behavior_diferent_p...
+    ### this is my current task!!!
+
+    mismatch_node_index = find_corresponding_index(traceroute_path, responsible_device)
+
+    last_action = forward_hops_interfaces[mismatch_node_index].split(':')[0]
+    desired_action = desired_path[mismatch_node_index].split(':')[0]
+
+    # the routing decision differs
+    if last_action == 'OUTGOING' and desired_action == 'OUTGOING':
+        return True
+    else:
+        return False
+
+def find_corresponding_index(traceroute_path, responsible_device):
+    for index,traceroute_hop in enumerate(traceroute_path):
+        if traceroute_hop.node == responsible_device:
+            return index
+    return None
+
 
 def was_one_root_cause_correct(possible_explanations):
     pass
@@ -376,6 +477,25 @@ def construct_interface_by_interface_hops(forward_hops):
             interface_by_interface_hops.append( outgoing_interface[9:-2]  )
         '''
     return interface_by_interface_hops
+
+def run_traceroute(start_location, dst_ip, src_ip):
+    traceroute_results = bfq.bidirectionalTraceroute(startLocation='@enter(' + start_location + ')',
+                                headers=HeaderConstraints(dstIps=dst_ip,
+                                                          srcIps=src_ip))
+    '''
+        e.g.,
+        traceroute_results = bfq.bidirectionalTraceroute(startLocation='@enter(abc-3850parts[GigabitEthernet1/1/2])',
+                                headers=HeaderConstraints(dstIps='10.10.20.8',
+                                                          srcIps='10.10.20.5'))
+    '''
+
+    forward_hops = traceroute_results.answer().frame().Forward_Traces[0][0].hops
+    try:
+        return_hops = traceroute_results.answer().frame().Reverse_Traces[0][0].hops
+    except:
+        return_hops = None
+    return forward_hops, return_hops
+
 ###################################################################################
 ###################################################################################
 
@@ -430,6 +550,7 @@ def can_we_recreate_the_problem_p(problematic_path, forward_hops_interfaces):
     else:
         return False
 
+'''
 def generate_explanations(mismatch_node_index, forward_hops_interfaces, desired_path, forward_hops, start_location,
                                dst_ip, src_ip):
 
@@ -447,27 +568,7 @@ def generate_explanations(mismatch_node_index, forward_hops_interfaces, desired_
         pass
 
     return explanation
-
-def routing_behavior_different_p(forward_hops_interfaces, desired_path, mismatch_node_index):
-    last_action = forward_hops_interfaces[mismatch_node_index].split(':')[0]
-    desired_action = desired_path[mismatch_node_index].split(':')[0]
-
-    # the routing decision differs
-    if last_action == 'OUTGOING' and desired_action == 'OUTGOING':
-        return True
-    else:
-        return False
-
-
-def acl_behavior_diferent_p(forward_hops_interfaces, desired_path, mismatch_node_index):
-    last_action = forward_hops_interfaces[mismatch_node_index].split(':')[0]
-    desired_action = desired_path[mismatch_node_index].split(':')[0]
-
-    # the ACL action differs
-    if last_action == 'DENIED' or last_action == 'ACCEPTED':
-        return True
-    else:
-        return False
+'''
 
 def find_difference_between_concrete_and_desired_paths(start_location, dst_ip, src_ip, protocol, desired_path):
     if start_location is not None and dst_ip is not None and src_ip is not None:
@@ -508,7 +609,7 @@ def find_point_where_desired_and_actual_paths_diverge(forward_hops_interfaces, d
             break
     return mismatch_node_index
 
-def generate_explanations_for_different_routing(forward_hops_interfaces, mismatch_index):
+def generate_explanations_for_different_routing(traceroute_path, desired_path, responsible_device):
     hop_that_happened = (forward_hops_interfaces[mismatch_index - 1], forward_hops_interfaces[mismatch_index])
     hop_that_we_want_to_happen = (desired_path[mismatch_index - 1], desired_path[mismatch_index])
     explanation = []
@@ -610,19 +711,47 @@ def check_for_port_mismatchs(relevant_port_src, relevant_port_dst, local_interfa
 
     return explanation
 
-def run_traceroute(start_location, dst_ip, src_ip):
-    traceroute_results = bfq.bidirectionalTraceroute(startLocation='@enter(' + start_location + ')',
-                                headers=HeaderConstraints(dstIps=dst_ip,
-                                                          srcIps=src_ip))
-    '''
-        traceroute_results = bfq.bidirectionalTraceroute(startLocation='@enter(abc-3850parts[GigabitEthernet1/1/2])',
-                                headers=HeaderConstraints(dstIps='10.10.20.8',
-                                                          srcIps='10.10.20.5'))
-    '''
+def find_all_routes_with_correct_next_hop(hop_that_happened, hop_that_we_want_to_happen, matching_routes):
+    device_that_routed_packet = hop_that_happened[0]
+    routes_with_correct_next_hop = []
+    vlan_properties = bfq.switchedVlanProperties(nodes=device_that_routed_packet).answer().frame()
+    for matching_route in matching_routes:
+        network, next_hop_ip, next_hop_interface = matching_route[1]['Network'], matching_route[1]['Next_Hop_IP'], \
+                                                   matching_route[1]['Next_Hop_Interface']
+        # TODO: what does it mean  when the next_hop_interface is dynamic (looks like it typically occurs when there is a concrete next_hop_ip)
 
-    forward_hops = traceroute_results.answer().frame().Forward_Traces[0][0].hops
-    try:
-        return_hops = traceroute_results.answer().frame().Reverse_Traces[0][0].hops
-    except:
-        return_hops = None
-    return forward_hops, return_hops
+        if 'vlan' in next_hop_interface.lower():
+            relevant_vlan_details = vlan_properties.loc[vlan_properties['VLAN_ID'] == next_hop_interface]
+            vlan_interface_details = relevant_vlan_details['Interfaces']
+            # okay,so now we have a bunch of corresponding interfaces that the packet could go out on. Do any of these go to the
+            # device that we want?
+            layer1_edges = bfq.layer1Edges(nodes=device_that_routed_packet).answer().frame()
+            routing_entry_takes_us_where_we_want_to_go = False
+            for edge in layer1_edges.iterrows():
+                remote_interface = edge[1]['Remote_Interface']
+                remote_node, remote_port = remote_interface.hostname, remote_interface.interface
+                # if this is the correct hop
+                if remote_node == hop_that_we_want_to_happen[1]:
+                    routing_entry_takes_us_where_we_want_to_go = True
+                if routing_entry_takes_us_where_we_want_to_go:
+                    routes_with_correct_next_hop.append(matching_route)
+                    break
+
+    return routes_with_correct_next_hop
+
+def find_all_routes_that_match(hop_that_happened, dst_ip):
+    device_that_routed_packet = hop_that_happened[0]
+    routing_table_df = bfq.routes().answer().frame().sort_values(by="Node")
+    only_relevant_routing_table_rows = routing_table_df[routing_table_df['Node'] == device_that_routed_packet]
+
+    matching_routes = []
+    dst_ip_object = ipaddress.ip_address(dst_ip)
+    for row in only_relevant_routing_table_rows.iterrows():
+        ip_addr_and_mask = row[1]['Network']
+        ip_addr_with_mask = ipaddress.ip_network(ip_addr_and_mask, strict=True)
+        if dst_ip_object in ip_addr_with_mask:
+            matching_routes.append( row )
+    return matching_routes
+
+def is_problem_reproduced():
+    pass
