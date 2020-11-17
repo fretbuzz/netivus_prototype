@@ -15,14 +15,16 @@ import ipaddress
 
 
 def main(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_ip, src_ip, desired_path, problematic_path,
-         no_interactive_flag, type_of_problem, end_location):
+         no_interactive_flag, type_of_problem, end_location, srcPort, dstPort, ipProtocol):
+
     G_layer_2, G_layer_3, explanation = run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location,
                                                     dst_ip, src_ip, problematic_path, no_interactive_flag, type_of_problem,
-                                                    end_location)
+                                                    end_location, srcPort, dstPort, ipProtocol)
     print("Explanation: " + str(explanation))
 
 def run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_ip, src_ip, problematic_path,
-                no_interactive_flag, type_of_problem, end_location, DEBUG=True, protocol='tcp', return_after_initialization = False):
+                no_interactive_flag, type_of_problem, end_location, srcPort, dstPort, ipProtocol,
+                DEBUG=True, protocol='tcp', return_after_initialization = False):
 
     #% run startup.py
     #bf_session.host = "172.0.0.1"  # <batfish_service_ip>
@@ -101,7 +103,8 @@ def run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_
         return start_location, end_location, dst_ip, src_ip, protocol, desired_path, type_of_problem, intermediate_scenario_directory, NETWORK_NAME, SNAPSHOT_NAME, DEBUG
 
     explanation = debug_network_problem(start_location, end_location, dst_ip, src_ip, protocol, desired_path,
-                                        type_of_problem, intermediate_scenario_directory, NETWORK_NAME, SNAPSHOT_NAME, DEBUG)
+                                        type_of_problem, intermediate_scenario_directory, srcPort, dstPort, ipProtocol,
+                                        NETWORK_NAME, SNAPSHOT_NAME, DEBUG)
 
     return G_layer_2, G_layer_3, explanation
 
@@ -115,6 +118,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     start_location, end_location, dst_ip, src_ip, desired_path, problematic_path, type_of_problem = None, None, None, None, None, None, None
+    srcPort, dstPort, ipProtocol = None, None, None
 
     # type_of_problem has two types:
     ## Connecitivity_Allowed  : connectivity was allowed, but should be blocked
@@ -323,16 +327,53 @@ if __name__ == "__main__":
         start_location = 'cisco-1-c[GigabitEthernet0/0]'  # TODO
         dst_ip = '8.8.8.8'  # TODO
         src_ip = '10.1.9.22'  # TODO
+
     elif args.netivus_experiment == "synthetic_base_network":
         NETWORK_NAME = "synthetic_base_network"
         SNAPSHOT_NAME = "synthetic_base_network"
         SNAPSHOT_PATH = "./synthetic_scenarios/base_Intenionet_network"
+
+        type_of_problem = 'Connectivity_Allowed_And_Should_Be_Allowed'
+        src_ip = '2.128.0.101'
+        dst_ip = '2.128.1.101'
+        srcPort = "22"
+        dstPort = "22"
+        ipProtocol = 'tcp'
+        start_location = 'as2dept1[GigabitEthernet2/0]'
+        end_location = 'host2[eth0]'
+        desired_path = None # Not needed for this type of problem
+        problematic_path = None # not needed by this system, for any task
+
+    elif args.netivus_experiment == "synthetic_acl_shadowed_blocked_but_should_be_allowed":
+        NETWORK_NAME = "synthetic_acl_shadowed_blocked_but_should_be_allowed"
+        SNAPSHOT_NAME = "synthetic_acl_shadowed_blocked_but_should_be_allowed"
+        SNAPSHOT_PATH = "./synthetic_scenarios/blocked_but_should_be_allowed/acl_shadowed"
+
     elif args.netivus_experiment == "synthetic_explicit_acl_drop_packets":
-        pass
+        NETWORK_NAME = "synthetic_explicit_acl_drop_packets"
+        SNAPSHOT_NAME = "synthetic_explicit_acl_drop_packets"
+        SNAPSHOT_PATH = "./synthetic_scenarios/blocked_but_should_be_allowed/explicit_acl_drop_packets"
+
+        # problem info
+        type_of_problem = 'Connecitivity_Blocked_But_Should_Be_Allowed'
+        src_ip = '2.128.0.101'
+        dst_ip = '2.128.1.101'
+        start_location = 'host1[eth0]'
+        end_location = 'host2[eth0]'
+        desired_path = ['RECEIVED:as2dept1[GigabitEthernet2/0]', 'TRANSMITED:as2dept1[GigabitEthernet3/0]',
+                        'RECEIVED:host2[eth0]']
+        problematic_path = None # not needed by this system, for any task
+
     elif args.netivus_experiment == "synthetic_interface_mismatch_vlan_tagging":
-        pass
+        NETWORK_NAME = "synthetic_interface_mismatch_vlan_tagging"
+        SNAPSHOT_NAME = "synthetic_interface_mismatch_vlan_tagging"
+        SNAPSHOT_PATH = "./synthetic_scenarios/blocked_but_should_be_allowed/interface_mismatch_vlan_tagging"
+
     elif args.netivus_experiment == "synthetic_route_pkts_the_wrong_way":
-        pass
+        NETWORK_NAME = "synthetic_route_pkts_the_wrong_way"
+        SNAPSHOT_NAME = "synthetic_route_pkts_the_wrong_way"
+        SNAPSHOT_PATH = "./synthetic_scenarios/blocked_but_should_be_allowed/synthetic_route_pkts_the_wrong_way"
+
     elif args.netivus_experiment == "synthetic_acl_shadowed":
         pass
     elif args.netivus_experiment == "synthetic_bi_directional_nat":
@@ -357,7 +398,7 @@ if __name__ == "__main__":
 
     no_interactive_flag = True # if true, do not take any input from the operator via the CLI
     main(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_ip, src_ip, desired_path, problematic_path,
-         no_interactive_flag, type_of_problem, end_location)
+         no_interactive_flag, type_of_problem, end_location, srcPort, dstPort, ipProtocol)
 
     #create_gns3_copy()
 

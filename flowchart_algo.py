@@ -10,7 +10,7 @@ import networkx as nx
 import ipaddress
 
 def debug_network_problem(start_location, end_location, dst_ip, src_ip, protocol, desired_path, type_of_problem,
-                          intermediate_scenario_directory, NETWORK_NAME, SNAPSHOT_NAME, DEBUG):
+                          intermediate_scenario_directory, srcPort, dstPort, ipProtocol, NETWORK_NAME, SNAPSHOT_NAME, DEBUG):
     given_desired_path = False
     if desired_path:
         given_desired_path = True
@@ -20,8 +20,13 @@ def debug_network_problem(start_location, end_location, dst_ip, src_ip, protocol
         is_topology_connected()
 
         # TODO: can the problem be recreated?
-        can_problem_be_recreated_p, problematic_path_forward, problematic_path_return, should_we_debug_the_path_forward = \
-            can_problem_be_recreated(type_of_problem, start_location, dst_ip, src_ip, end_location)
+        can_problem_be_recreated_p, problematic_path_forward, problematic_path_return, should_we_debug_the_path_forward, return_immediately = \
+            can_problem_be_recreated(type_of_problem, start_location, dst_ip, src_ip, end_location, srcPort, dstPort, ipProtocol)
+
+        if return_immediately:
+            print_status_of_reproduction(can_problem_be_recreated_p, problematic_path_forward, problematic_path_return,\
+                                         type_of_problem, start_location, dst_ip, src_ip, end_location)
+            return can_problem_be_recreated_p
 
         if not can_problem_be_recreated_p:
             # TODO: if it cannot be recreated, refine (w/ help from collabs)
@@ -61,6 +66,27 @@ def debug_network_problem(start_location, end_location, dst_ip, src_ip, protocol
                 ####
                 break
 
+def print_status_of_reproduction(can_problem_be_recreated_p, problematic_path_forward, problematic_path_return,
+                                         type_of_problem, start_location, dst_ip, src_ip, end_location):
+    print("--------------------")
+    print("--------------------")
+    print("- Type of Problem:", type_of_problem)
+    print("- Src_ip:", src_ip, "; Dst_ip:", dst_ip)
+    print("- Start_loc: ", start_location, "; End_loc: ", end_location)
+    print("- Can the problem be recreated: ", can_problem_be_recreated_p)
+    print("- Forward path:")
+    if problematic_path_forward is None:
+        print(problematic_path_forward)
+    else:
+        for step in problematic_path_forward:
+            print('\t',  step)
+    print("- Return path:")
+    if problematic_path_return is None:
+        print(problematic_path_return)
+    else:
+        #show(problematic_path_return)
+        for step in problematic_path_return:
+            print('\t',  step)
 
 def generate_guesses_for_remediation(path_to_debug, given_desired_path, desired_path):
     possible_explanations = []
@@ -74,9 +100,11 @@ def generate_guesses_for_remediation(path_to_debug, given_desired_path, desired_
     return possible_explanations
 
 
-def can_problem_be_recreated(type_of_problem, start_location, dst_ip, src_ip, end_location):
-    forward_hops, return_hops = run_traceroute(start_location, dst_ip, src_ip)
+def can_problem_be_recreated(type_of_problem, start_location, dst_ip, src_ip, end_location, srcPort, dstPort, ipProtocol):
+    forward_hops, return_hops = run_traceroute(start_location, dst_ip, src_ip, srcPort, dstPort, ipProtocol)
     #final_node = forward_hops[-1].node
+    print("forward_hops", forward_hops)
+    print("return_hops", return_hops)
     forward_final_interface = find_final_interface(forward_hops, forward=True)
     return_final_interface = find_final_interface(return_hops, forward=False)
 
@@ -85,9 +113,10 @@ def can_problem_be_recreated(type_of_problem, start_location, dst_ip, src_ip, en
 
     should_we_debug_the_path_forward = None #### if we can
     can_we_recreate_the_problem_p = None
+    return_immediately = False
 
     # run the comparison check here...
-    if type_of_problem == "Connecitivity_Blocked":
+    if type_of_problem == "Connecitivity_Allowed_But_Should_Be_Blocked":
         if src_can_reach_dst_p and dst_can_reach_src_p:
             # if the problem is that we CANNOT reach the destination, then if we cam reach the destination
             ## we CANNOT recreate the problem
@@ -102,12 +131,12 @@ def can_problem_be_recreated(type_of_problem, start_location, dst_ip, src_ip, en
             ## forward, then we need to debug the forward path
             should_we_debug_the_path_forward = not src_can_reach_dst_p
             #return True, forward_hops, return_hops, should_we_debug_the_path_forward
-    elif type_of_problem =="Connecitivity_Allowed":
+    elif type_of_problem =="Connecitivity_Blocked_But_Should_Be_Allowed":
         if src_can_reach_dst_p and dst_can_reach_src_p:
             # if the problem is that we CAN reach the destination, then if we can reach the destination
             ## we can recreate the problem
             can_we_recreate_the_problem_p = True
-            should_we_debug_the_path_forward = None # TODO:: how to do this??
+            should_we_debug_the_path_forward = not src_can_reach_dst_p # TODO:: how to do this??
             #return True, forward_hops, return_hops, should_we_debug_the_path_forward
         else:
             # if the problem is that we CAN reach the destination, then if we cannot reach the destination
@@ -118,13 +147,30 @@ def can_problem_be_recreated(type_of_problem, start_location, dst_ip, src_ip, en
             ## forward, then we need to debug the forward path
             should_we_debug_the_path_forward = src_can_reach_dst_p
             #return False, forward_hops, return_hops, should_we_debug_the_path_forward
+    elif type_of_problem == "Connectivity_Allowed_And_Should_Be_Allowed":
+        return_immediately = True
+
+        if src_can_reach_dst_p and dst_can_reach_src_p:
+            can_we_recreate_the_problem_p = True
+        else:
+            can_we_recreate_the_problem_p = False
+    elif type_of_problem == "Connectivity_Blocked_And_Should_Be_Blocked":
+        return_immediately = True
+
+        if src_can_reach_dst_p and dst_can_reach_src_p:
+            can_we_recreate_the_problem_p = False
+        else:
+            can_we_recreate_the_problem_p = True
     else:
         raise("Unsupported type_of_problem")
 
-    return can_we_recreate_the_problem_p, forward_hops, return_hops, should_we_debug_the_path_forward
+    return can_we_recreate_the_problem_p, forward_hops, return_hops, should_we_debug_the_path_forward, return_immediately
 
 
 def find_final_interface(forward_hops, forward):
+    if forward_hops is None:
+        return None
+
     final_node = forward_hops[-1]
     # not sure if the final behavior will be recieving or transmitting, so we must scan for both
     final_interface = None
@@ -461,10 +507,21 @@ def construct_interface_by_interface_hops(forward_hops):
         '''
     return interface_by_interface_hops
 
-def run_traceroute(start_location, dst_ip, src_ip):
+def run_traceroute(start_location, dst_ip, src_ip, srcPort, dstPort, ipProtocol):
+    header_constraint_args = {"dstIps": dst_ip, "srcIps": src_ip}
+    if srcPort:
+        header_constraint_args["srcPorts"]=  srcPort
+    if dstPort:
+        header_constraint_args["dstPorts"] = dstPort
+    if ipProtocol:
+        header_constraint_args["ipProtocols"] = ipProtocol
+
     traceroute_results = bfq.bidirectionalTraceroute(startLocation='@enter(' + start_location + ')',
-                                headers=HeaderConstraints(dstIps=dst_ip,
-                                                          srcIps=src_ip))
+                                headers=HeaderConstraints( **header_constraint_args ))
+
+    ''',
+    dstPorts=52,
+    srcPorts=53))'''
     '''
         e.g.,
         traceroute_results = bfq.bidirectionalTraceroute(startLocation='@enter(abc-3850parts[GigabitEthernet1/1/2])',
