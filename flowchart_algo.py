@@ -65,32 +65,6 @@ def debug_network_problem(start_location, end_location, dst_ip, src_ip, protocol
                 ####
                 break
 
-        '''
-        forward_hops_interfaces, return_hops_interfaces, mismatch_node_index, forward_hops, return_hops = \
-            find_difference_between_concrete_and_desired_paths(start_location, dst_ip, src_ip, protocol, desired_path)
-
-        # TODO: can the problem be reproduced ?? this will require additional information...
-        if problematic_path is not None:
-            problem_could_be_recreated_p = can_we_recreate_the_problem_p(problematic_path, forward_hops_interfaces)
-            if not problem_could_be_recreated_p:
-                potentially_relevant_batfish_errors = not_reproducable_because_missing_feature(forward_hops_interfaces, desired_path, mismatch_node_index)
-                if (potentially_relevant_batfish_errors.size) > 0:
-                    print("these are the batfish errors")
-                    print(potentially_relevant_batfish_errors)
-                    return potentially_relevant_batfish_errors
-                elif not_reproducbile_because_missing_device():
-                    pass
-                elif not_reproducible_because_missing_info():
-                    pass
-
-                pass # TODO: perform refinement loop here
-
-        possible_explanations = generate_explanations(mismatch_node_index, forward_hops_interfaces, desired_path, forward_hops, start_location,
-                                                      dst_ip, src_ip)
-
-        return possible_explanations
-        '''
-
 def can_problem_be_recreated(type_of_problem, start_location, dst_ip, src_ip, end_location):
     forward_hops, return_hops = run_traceroute(start_location, dst_ip, src_ip)
     #final_node = forward_hops[-1].node
