@@ -16,8 +16,6 @@ def debug_network_problem(start_location, end_location, dst_ip, src_ip, protocol
         given_desired_path = True
 
     while True:
-        possible_explanations = []
-
         # TODO: is the topology connecteD?
         is_topology_connected()
 
@@ -32,7 +30,6 @@ def debug_network_problem(start_location, end_location, dst_ip, src_ip, protocol
                 continue
 
         # we can recreate the problem, so we can attempt to debug (though we might find out that we cannot later on)
-
         # TODO: generate all possible desired_paths (ranked from most likely to least likely)
         ## for now, we can just use the given one above (for convenience...)
         if should_we_debug_the_path_forward:
@@ -46,15 +43,14 @@ def debug_network_problem(start_location, end_location, dst_ip, src_ip, protocol
                                                    src_loc = end_location, dest_loc = start_location,
                                                    traceroute_path = problematic_path_forward)
 
-        for desired_path in desired_paths:
+        #if desired_path_index > len(desired_paths):
+        #    raise('ran out of desired paths to examine')
+
+        for index in range(0, len(desired_paths)):
+            desired_path = desired_paths[index]
             # TODO: for a given problematic path, guess which device is responsible
             ## rank these in order from most likely responsible to least likely responsible
-            responsible_devices = guess_which_devices_are_responsible(path_to_debug, desired_path, given_desired_path)
-
-            for responsible_device in responsible_devices:
-                # TODO: for a given problematic path + device, blame the particular part of the device
-                potential_explanation = diagnose_root_cause(desired_path, path_to_debug, responsible_device)
-                possible_explanations.append( potential_explanation )
+            possible_explanations = generate_guesses_for_remediation(path_to_debug, given_desired_path, desired_path)
 
             was_one_root_cause_correct_p, correct_explanation, must_revise_network_model = was_one_root_cause_correct(possible_explanations)
             if was_one_root_cause_correct_p:
@@ -64,6 +60,19 @@ def debug_network_problem(start_location, end_location, dst_ip, src_ip, protocol
                 generate_graph_representations(intermediate_scenario_directory, False, NETWORK_NAME, SNAPSHOT_NAME)
                 ####
                 break
+
+
+def generate_guesses_for_remediation(path_to_debug, given_desired_path, desired_path):
+    possible_explanations = []
+    responsible_devices = guess_which_devices_are_responsible(path_to_debug, desired_path, given_desired_path)
+
+    for responsible_device in responsible_devices:
+        # TODO: for a given problematic path + device, blame the particular part of the device
+        potential_explanation = diagnose_root_cause(desired_path, path_to_debug, responsible_device)
+        possible_explanations.append(potential_explanation)
+
+    return possible_explanations
+
 
 def can_problem_be_recreated(type_of_problem, start_location, dst_ip, src_ip, end_location):
     forward_hops, return_hops = run_traceroute(start_location, dst_ip, src_ip)

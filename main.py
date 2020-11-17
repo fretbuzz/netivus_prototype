@@ -22,7 +22,7 @@ def main(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_ip, src
     print("Explanation: " + str(explanation))
 
 def run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_ip, src_ip, problematic_path,
-                no_interactive_flag, type_of_problem, end_location, DEBUG=True, protocol='tcp'):
+                no_interactive_flag, type_of_problem, end_location, DEBUG=True, protocol='tcp', return_after_initialization = False):
 
     #% run startup.py
     #bf_session.host = "172.0.0.1"  # <batfish_service_ip>
@@ -96,6 +96,9 @@ def run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_
 
     plot_graph(G, color_map, fig_number=6, title='Interace_connectivity',
                layer_2=False, filename="./outputs/" + NETWORK_NAME + "/layer_3_diagram.png")
+
+    if return_after_initialization:
+        return start_location, end_location, dst_ip, src_ip, protocol, desired_path, type_of_problem, intermediate_scenario_directory, NETWORK_NAME, SNAPSHOT_NAME, DEBUG
 
     explanation = debug_network_problem(start_location, end_location, dst_ip, src_ip, protocol, desired_path,
                                         type_of_problem, intermediate_scenario_directory, NETWORK_NAME, SNAPSHOT_NAME, DEBUG)

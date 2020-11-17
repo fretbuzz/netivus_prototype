@@ -1,4 +1,8 @@
 import unittest
+import io
+import sys
+import main, flowchart_algo
+from unittest import mock
 
 class TestStringMethods(unittest.TestCase):
 
@@ -22,11 +26,23 @@ class Test_Base_Network_Works(unittest.TestCase):
         pass
 
 class Test_Allowed_But_Should_Be_Blocked(unittest.TestCase):
+
+    @mock.patch('module_under_test.input', create=True)
     def test_acl_shadowed(self):
-        #
+        # output code from here: https://stackoverflow.com/questions/33767627/python-write-unittest-for-console-print
+        # then input code can be @patch (for mock unittest) :: https://stackoverflow.com/questions/47690020/python-3-unit-tests-with-user-input
+        flowchart_algo.side_effect = ['Albert Einstein', '42.81', 'done'] # each time the module calls for input, it'll take the next value from this list (i.e. reads left to right, one val per input request)
 
+        capturedOutput = io.StringIO()  # Create StringIO object
+        sys.stdout = capturedOutput
 
-        pass # TODO
+        # TODO: put the actual function call here
+        pass
+
+        sys.stdout = sys.__stdout__  # Reset redirect.
+        print('Captured', capturedOutput.getvalue())  # print the output, so that we can see it
+
+        # TODO: write the tests for the output here
 
     def test_bi_directional_nat(self):
         pass # TODO
