@@ -73,7 +73,6 @@ def print_status_of_reproduction(can_problem_be_recreated_p, problematic_path_fo
     print("- Type of Problem:", type_of_problem)
     print("- Src_ip:", src_ip, "; Dst_ip:", dst_ip)
     print("- Start_loc: ", start_location, "; End_loc: ", end_location)
-    print("- Can the problem be recreated: ", can_problem_be_recreated_p)
     print("- Forward path:")
     if problematic_path_forward is None:
         print(problematic_path_forward)
@@ -87,6 +86,7 @@ def print_status_of_reproduction(can_problem_be_recreated_p, problematic_path_fo
         #show(problematic_path_return)
         for step in problematic_path_return:
             print('\t',  step)
+    print("- Can the problem be recreated: ", can_problem_be_recreated_p)
 
 def generate_guesses_for_remediation(path_to_debug, given_desired_path, desired_path):
     possible_explanations = []
@@ -108,8 +108,8 @@ def can_problem_be_recreated(type_of_problem, start_location, dst_ip, src_ip, en
     forward_final_interface = find_final_interface(forward_hops, forward=True)
     return_final_interface = find_final_interface(return_hops, forward=False)
 
-    src_can_reach_dst_p = forward_final_interface == end_location
-    dst_can_reach_src_p = return_final_interface == start_location
+    src_can_reach_dst_p = (forward_final_interface == end_location)
+    dst_can_reach_src_p = (return_final_interface == start_location)
 
     should_we_debug_the_path_forward = None #### if we can
     can_we_recreate_the_problem_p = None
@@ -173,18 +173,35 @@ def find_final_interface(forward_hops, forward):
 
     final_node = forward_hops[-1]
     # not sure if the final behavior will be recieving or transmitting, so we must scan for both
+    # but first, check if it was dropped or accepted (which are more "final" than recieved or transmitted)
     final_interface = None
+
     for step in final_node.steps:
-        if step.action == "TRANSMITTED":
-            final_interface = final_node.node + '[' + step.detail.outputInterface + ']'
-        '''
-        if forward:
+        if step.action == "DENIED":
+            # TODO: this case is just a placeholder
+            # could be dropped by either an INGRESS or EGRESS filter
+            try:
+                final_interface = 'DENIED:' + final_node.node + '[' + step.detail.outputInterface + ']'
+            except:
+                final_interface = 'DENIED:' + final_node.node + '[' + step.detail.inputInterface + ']'
+
+    if final_interface is None:
+        for step in final_node.steps:
+            if step.action == "ACCEPTED":
+                final_interface = final_node.node + '[' + step.detail.interface + ']'
+
+    if final_interface is None:
+        for step in final_node.steps:
             if step.action == "TRANSMITTED":
                 final_interface = final_node.node + '[' + step.detail.outputInterface + ']'
-        else:
-            if step.action == "RECEIVED":
-                final_interface = final_node.node + '[' + step.detail.inputInterface + ']'
-        '''
+            '''
+            if forward:
+                if step.action == "TRANSMITTED":
+                    final_interface = final_node.node + '[' + step.detail.outputInterface + ']'
+            else:
+                if step.action == "RECEIVED":
+                    final_interface = final_node.node + '[' + step.detail.inputInterface + ']'
+            '''
     if final_interface is None:
         for step in final_node.steps:
             if step.action == "RECEIVED":
@@ -516,7 +533,7 @@ def run_traceroute(start_location, dst_ip, src_ip, srcPort, dstPort, ipProtocol)
     if ipProtocol:
         header_constraint_args["ipProtocols"] = ipProtocol
 
-    traceroute_results = bfq.bidirectionalTraceroute(startLocation='@enter(' + start_location + ')',
+    traceroute_results = bfq.bidirectionalTraceroute(startLocation=start_location,
                                 headers=HeaderConstraints( **header_constraint_args ))
 
     ''',

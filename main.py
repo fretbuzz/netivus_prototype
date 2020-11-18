@@ -19,11 +19,13 @@ def main(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_ip, src
 
     G_layer_2, G_layer_3, explanation = run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location,
                                                     dst_ip, src_ip, problematic_path, no_interactive_flag, type_of_problem,
-                                                    end_location, srcPort, dstPort, ipProtocol)
+                                                    end_location, srcPort, dstPort, ipProtocol, desired_path)
     print("Explanation: " + str(explanation))
 
+    return G_layer_2, G_layer_3, explanation
+
 def run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_ip, src_ip, problematic_path,
-                no_interactive_flag, type_of_problem, end_location, srcPort, dstPort, ipProtocol,
+                no_interactive_flag, type_of_problem, end_location, srcPort, dstPort, ipProtocol, desired_path,
                 DEBUG=True, protocol='tcp', return_after_initialization = False):
 
     #% run startup.py
@@ -102,6 +104,7 @@ def run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_
     if return_after_initialization:
         return start_location, end_location, dst_ip, src_ip, protocol, desired_path, type_of_problem, intermediate_scenario_directory, NETWORK_NAME, SNAPSHOT_NAME, DEBUG
 
+    print("desired_path", desired_path)
     explanation = debug_network_problem(start_location, end_location, dst_ip, src_ip, protocol, desired_path,
                                         type_of_problem, intermediate_scenario_directory, srcPort, dstPort, ipProtocol,
                                         NETWORK_NAME, SNAPSHOT_NAME, DEBUG)
@@ -339,7 +342,7 @@ if __name__ == "__main__":
         srcPort = "22"
         dstPort = "22"
         ipProtocol = 'tcp'
-        start_location = 'as2dept1[GigabitEthernet2/0]'
+        start_location = 'host1[eth0]'
         end_location = 'host2[eth0]'
         desired_path = None # Not needed for this type of problem
         problematic_path = None # not needed by this system, for any task
