@@ -8,9 +8,11 @@ from pybatfish.question import bfq
 from augment_network_representation import generate_graph_representations
 import networkx as nx
 import ipaddress
+import pickle
 
 def debug_network_problem(start_location, end_location, dst_ip, src_ip, protocol, desired_path, type_of_problem,
-                          intermediate_scenario_directory, srcPort, dstPort, ipProtocol, NETWORK_NAME, SNAPSHOT_NAME, DEBUG):
+                          intermediate_scenario_directory, srcPort, dstPort, ipProtocol, NETWORK_NAME, SNAPSHOT_NAME, DEBUG,
+                          return_after_recreation):
     given_desired_path = False
     if desired_path:
         given_desired_path = True
@@ -23,10 +25,10 @@ def debug_network_problem(start_location, end_location, dst_ip, src_ip, protocol
         can_problem_be_recreated_p, problematic_path_forward, problematic_path_return, should_we_debug_the_path_forward, return_immediately = \
             can_problem_be_recreated(type_of_problem, start_location, dst_ip, src_ip, end_location, srcPort, dstPort, ipProtocol)
 
-        if return_immediately:
+        if return_immediately or return_after_recreation:
             print_status_of_reproduction(can_problem_be_recreated_p, problematic_path_forward, problematic_path_return,\
                                          type_of_problem, start_location, dst_ip, src_ip, end_location)
-            return can_problem_be_recreated_p
+            return can_problem_be_recreated_p, should_we_debug_the_path_forward
 
         if not can_problem_be_recreated_p:
             # TODO: if it cannot be recreated, refine (w/ help from collabs)
@@ -40,11 +42,13 @@ def debug_network_problem(start_location, end_location, dst_ip, src_ip, protocol
         if should_we_debug_the_path_forward:
             path_to_debug = problematic_path_forward
             desired_paths = generate_desired_paths(desired_path, intermediate_scenario_directory, DEBUG, NETWORK_NAME, SNAPSHOT_NAME,
+                                                   type_of_problem,
                                                    src_loc=start_location, dest_loc=end_location,
                                                    traceroute_path=problematic_path_forward)
         else:
             path_to_debug = problematic_path_return
             desired_paths = generate_desired_paths(desired_path, intermediate_scenario_directory, DEBUG, NETWORK_NAME, SNAPSHOT_NAME,
+                                                   type_of_problem,
                                                    src_loc = end_location, dest_loc = start_location,
                                                    traceroute_path = problematic_path_forward)
 
@@ -52,14 +56,14 @@ def debug_network_problem(start_location, end_location, dst_ip, src_ip, protocol
         #    raise('ran out of desired paths to examine')
 
         for index in range(0, len(desired_paths)):
-            desired_path = desired_paths[index]
+            overlap_score, desired_path = desired_paths[index]
             # TODO: for a given problematic path, guess which device is responsible
             ## rank these in order from most likely responsible to least likely responsible
-            possible_explanations = generate_guesses_for_remediation(path_to_debug, given_desired_path, desired_path)
+            possible_explanations = generate_guesses_for_remediation(path_to_debug, given_desired_path, desired_path, type_of_problem)
 
             was_one_root_cause_correct_p, correct_explanation, must_revise_network_model = was_one_root_cause_correct(possible_explanations)
             if was_one_root_cause_correct_p:
-                return correct_explanation
+                return correct_explanation, should_we_debug_the_path_forward
             elif must_revise_network_model:
                 ## TODO: the model will have already been refined, so now we just must recreate the model by rerunning Batfish
                 generate_graph_representations(intermediate_scenario_directory, False, NETWORK_NAME, SNAPSHOT_NAME)
@@ -88,13 +92,13 @@ def print_status_of_reproduction(can_problem_be_recreated_p, problematic_path_fo
             print('\t',  step)
     print("- Can the problem be recreated: ", can_problem_be_recreated_p)
 
-def generate_guesses_for_remediation(path_to_debug, given_desired_path, desired_path):
+def generate_guesses_for_remediation(path_to_debug, given_desired_path, desired_path, type_of_problem):
     possible_explanations = []
-    responsible_devices = guess_which_devices_are_responsible(path_to_debug, desired_path, given_desired_path)
+    responsible_devices = guess_which_devices_are_responsible(path_to_debug, desired_path, given_desired_path, type_of_problem)
 
     for responsible_device in responsible_devices:
         # TODO: for a given problematic path + device, blame the particular part of the device
-        potential_explanation = diagnose_root_cause(desired_path, path_to_debug, responsible_device)
+        potential_explanation = diagnose_root_cause(desired_path, path_to_debug, responsible_device, type_of_problem)
         possible_explanations.append(potential_explanation)
 
     return possible_explanations
@@ -116,7 +120,7 @@ def can_problem_be_recreated(type_of_problem, start_location, dst_ip, src_ip, en
     return_immediately = False
 
     # run the comparison check here...
-    if type_of_problem == "Connecitivity_Allowed_But_Should_Be_Blocked":
+    if type_of_problem == "Connecitivity_Blocked_But_Should_Be_Allowed":
         if src_can_reach_dst_p and dst_can_reach_src_p:
             # if the problem is that we CANNOT reach the destination, then if we cam reach the destination
             ## we CANNOT recreate the problem
@@ -131,12 +135,12 @@ def can_problem_be_recreated(type_of_problem, start_location, dst_ip, src_ip, en
             ## forward, then we need to debug the forward path
             should_we_debug_the_path_forward = not src_can_reach_dst_p
             #return True, forward_hops, return_hops, should_we_debug_the_path_forward
-    elif type_of_problem =="Connecitivity_Blocked_But_Should_Be_Allowed":
+    elif type_of_problem =="Connecitivity_Allowed_But_Should_Be_Blocked":
         if src_can_reach_dst_p and dst_can_reach_src_p:
             # if the problem is that we CAN reach the destination, then if we can reach the destination
             ## we can recreate the problem
             can_we_recreate_the_problem_p = True
-            should_we_debug_the_path_forward = not src_can_reach_dst_p # TODO:: how to do this??
+            should_we_debug_the_path_forward = not src_can_reach_dst_p # TODO© how to do this??
             #return True, forward_hops, return_hops, should_we_debug_the_path_forward
         else:
             # if the problem is that we CAN reach the destination, then if we cannot reach the destination
@@ -152,15 +156,20 @@ def can_problem_be_recreated(type_of_problem, start_location, dst_ip, src_ip, en
 
         if src_can_reach_dst_p and dst_can_reach_src_p:
             can_we_recreate_the_problem_p = True
+            should_we_debug_the_path_forward = None # no problem at all, so set to None
         else:
             can_we_recreate_the_problem_p = False
+            should_we_debug_the_path_forward = not src_can_reach_dst_p # if cannot connect forward, then should look at forward path
+
     elif type_of_problem == "Connectivity_Blocked_And_Should_Be_Blocked":
         return_immediately = True
 
         if src_can_reach_dst_p and dst_can_reach_src_p:
             can_we_recreate_the_problem_p = False
+            should_we_debug_the_path_forward = None # no way to know if should be blocked going there or back, so set to None as a sentinal value
         else:
             can_we_recreate_the_problem_p = True
+            should_we_debug_the_path_forward = None # no problem at all, so set to None
     else:
         raise("Unsupported type_of_problem")
 
@@ -234,7 +243,7 @@ def find_recieved_interface(device_activity):
 def refine_network_representation_with_collab(problematic_path, type_of_problem):
     pass
 
-def generate_desired_paths(desired_path, intermediate_scenario_directory, DEBUG, NETWORK_NAME, SNAPSHOT_NAME,
+def generate_desired_paths(desired_path, intermediate_scenario_directory, DEBUG, NETWORK_NAME, SNAPSHOT_NAME, type_of_problem,
                            src_loc, dest_loc, traceroute_path):
 
     if desired_path is not None:
@@ -243,31 +252,92 @@ def generate_desired_paths(desired_path, intermediate_scenario_directory, DEBUG,
     else:
         ## TODO: *** probably wanna modify this so that interfaces are represented in the graph ***
         # generate possible desired paths and heuristically rank how likely they are
-        _, G_layer_1, _, _ = generate_graph_representations(intermediate_scenario_directory, DEBUG, NETWORK_NAME,
+        G, G_layer_1, _, _ = generate_graph_representations(intermediate_scenario_directory, DEBUG, NETWORK_NAME,
                                                             SNAPSHOT_NAME)
-        potential_desired_path_generator = nx.all_simple_paths(G_layer_1, src_loc, dest_loc)
+        potential_desired_path_generator = nx.all_simple_paths(G, src_loc, dest_loc)
+
+        '''
+        print("G has this many edges:", len( [i for i in G.edges()] ))
+        if False:
+            potential_desired_paths = [i for i in potential_desired_path_generator]
+            pickle.dump( potential_desired_paths, open( "save.p", "wb" ) )
+        else:
+            potential_desired_paths = pickle.load( open( "save.p", "rb" ) )
+        '''
+
         # now rank the paths...
         paths_with_overlapping_score = []
-        for potential_desired_path in potential_desired_path_generator[0]:
-            overlap_score = calculate_overlap(potential_desired_path, traceroute_path)
+        for potential_desired_path in potential_desired_path_generator:
+            interface_by_interface_potential_desired_path = standardize_desired_paths_format(potential_desired_path, type_of_problem)
+            traceroute_path_interfaces = construct_interface_by_interface_hops(traceroute_path)
+            overlap_score = calculate_overlap(interface_by_interface_potential_desired_path, traceroute_path_interfaces)
             paths_with_overlapping_score.append( (overlap_score, potential_desired_path))
 
         paths_with_overlapping_score.sort(key= lambda x: (x[0],))
+        paths_with_overlapping_score.reverse()
         return paths_with_overlapping_score
 
-def calculate_overlap(potential_desired_path, traceroute_path):
-    shortest_path = min(potential_desired_path, traceroute_path)
+def calculate_overlap(potential_desired_path, traceroute_path_interfaces):
+    shortest_path = min(potential_desired_path, traceroute_path_interfaces, key= lambda x: len(x))
+    #print("potential_desired_path", potential_desired_path)
+    #print("traceroute_path", traceroute_path)
     overlapping_node_count = 0
-    for index in range(0, shortest_path):
+    for index in range(0, len(shortest_path)):
         potential_desired_hop = potential_desired_path[index]
-        traceroute_hop = traceroute_path[index]
+        traceroute_hop = traceroute_path_interfaces[index]
 
-        if potential_desired_hop.node == traceroute_hop.node:
+        print(potential_desired_hop, traceroute_hop, potential_desired_hop == traceroute_hop)
+        if potential_desired_hop == traceroute_hop:
             overlapping_node_count += 1
 
     return overlapping_node_count
 
-def guess_which_devices_are_responsible(traceroute_path, desired_path, given_desired_path_p):
+def standardize_desired_paths_format(potential_desired_path, type_of_problem):
+    # need to make the desired_path be in the same format as the traceroute path is after it goes through construct_interface_by_interface_hops
+
+    # first, find which entries are hosts
+    host_bools = []
+    for hop in potential_desired_path:
+        print("hop", hop)
+        if '[' in hop and ']' in hop:
+            host_bools.append(False)
+        else:
+            host_bools.append(True)
+
+    # Second, if an interface is directly after a host, then it is outgoing.
+    # If an interface is directly before a host, it is incoming.
+    new_potential_desired_path = potential_desired_path[:]
+    for index in range(0, len(potential_desired_path)):
+        if not host_bools[index]: # if it is an interface...
+            if index > 0 and host_bools[index-1]: # if the previous entry is a host...
+                new_potential_desired_path[index] = 'TRANSMITTED:' + potential_desired_path[index] # then it is being transmitted
+            elif index < (len(potential_desired_path) - 1) and host_bools[index + 1] == True: # if the next entry is a host...
+                new_potential_desired_path[index] = 'RECEIVED:' + potential_desired_path[index] # then it is being received
+            elif index == 0: # if this is the first interface that the packet is coming out of it...
+                new_potential_desired_path[index] = 'TRANSMITTED:' + potential_desired_path[index] # then it is being transmitted
+            elif index == len(potential_desired_path) - 1: # if this is the last hop
+                if type_of_problem == "Connecitivity_Blocked_But_Should_Be_Allowed": # if it should be allowed
+                    new_potential_desired_path[index] = 'RECEIVED:' + potential_desired_path[index]  # then last thing will be recieved
+                elif type_of_problem == "Connecitivity_Allowed_But_Should_Be_Blocked": # if it should be blocked
+                    new_potential_desired_path[index] = 'DENIED:' + potential_desired_path[index]  # then the last thing will be denied
+                else:
+                    pass
+            else:
+                raise('unclear how to classify this hop in the desired path: ', potential_desired_path, index)
+        ''' # not needed because drops happen on interfaces
+        else: # last element in list can be a node and this can deny or accept packets...
+            if index == len(potential_desired_path) - 1: # if this is the last hop
+                if type_of_problem == "Connecitivity_Blocked_But_Should_Be_Allowed": # if it should be allowed
+                    new_potential_desired_path[index] = 'ACCEPTED:' + potential_desired_path[index]  # then last thing will be accepted
+                elif type_of_problem == "Connecitivity_Allowed_But_Should_Be_Blocked": # if it should be blocked
+                    new_potential_desired_path[index] = 'DENIED:' + potential_desired_path[index]  # then the last thing will be denied
+            else:
+                new_potential_desired_path[index] =  "AT_NODE:" + potential_desired_path[index]  # then the last thing will be denied
+        '''
+
+    return new_potential_desired_path
+
+def guess_which_devices_are_responsible(traceroute_path, desired_path, given_desired_path_p, type_of_problem):
     # this function determines which device performed the direct action on the packet that caused the incorrect behavior...
     ## note: that another device could be ultimately responsible (e.g., originated the route), but it didn't do anything
     ## to the packe
@@ -287,7 +357,7 @@ def guess_which_devices_are_responsible(traceroute_path, desired_path, given_des
         potentially_responsible_devices = guess_which_devices_are_responsible_user_specified_desired_path(interface_by_interface_traceroute_path, desired_path,
                                                                                                           traceroute_path)
     else:
-        potentially_responsible_devices = guess_which_devices_are_responsible_all_paths_system_generated(traceroute_path, desired_path)
+        potentially_responsible_devices = guess_which_devices_are_responsible_all_paths_system_generated(traceroute_path, desired_path, type_of_problem)
 
     return potentially_responsible_devices
 
@@ -343,6 +413,7 @@ def guess_which_devices_are_responsible_user_specified_desired_path(interface_by
         if traceroute_hop.node == responsible_node_name:
             traceroute_node_index = tr_index
 
+    # TODO: what to do here??
     for i in range(0, traceroute_node_index):
         if any_transformations_present(traceroute_path[i]):
             potentially_responsible_devices.append( traceroute_path[i].node)
@@ -355,22 +426,28 @@ def get_node_name(activity_and_interface_str):
 def get_node_activity(activity_and_interface_str):
     return activity_and_interface_str.split(':')[0]
 
-def guess_which_devices_are_responsible_all_paths_system_generated(traceroute_path, desired_path):
+def guess_which_devices_are_responsible_all_paths_system_generated(traceroute_path, desired_path, type_of_problem):
     potentially_responsible_devices = []
     found_responsible_node = False
     responsible_index = None # assign
-    min_path_length = min( len(traceroute_path), len(desired_path) )
+
+    interface_by_interface_potential_desired_path = standardize_desired_paths_format(desired_path, type_of_problem)
+    traceroute_path_interfaces = construct_interface_by_interface_hops(traceroute_path)
+
+    min_path_length = min( len(traceroute_path_interfaces), len(interface_by_interface_potential_desired_path) )
     for index in range(0, min_path_length):
-        traceroute_hop = traceroute_path[index]
-        desired_hop = desired_path[index]
+        traceroute_hop = traceroute_path_interfaces[index]
+        desired_hop = interface_by_interface_potential_desired_path[index]
 
         # zeroth, check if the node is the same
-        if traceroute_hop.node != desired_hop.node:
+        if traceroute_hop != desired_hop:
             # need to look at the *previous* node, since it made the decision to send it here
-            potentially_responsible_devices.append(traceroute_path[index-1].node)
+            potentially_responsible_devices.append(traceroute_path_interfaces[index])
             found_responsible_node = True
             responsible_index = index
             break
+
+        ''' # this code is no longer relevant b/c we modified the paths...
         # first check if the recieved interface/device is different
         traceroute_recieved_interface, desired_recieved_interface = find_recieved_interface(traceroute_hop), find_recieved_interface(desired_hop)
         if traceroute_recieved_interface != desired_recieved_interface:
@@ -386,19 +463,22 @@ def guess_which_devices_are_responsible_all_paths_system_generated(traceroute_pa
             found_responsible_node = True
             responsible_index = index
             break
+        '''
     if not found_responsible_node:
-        if len(traceroute_path) < len(desired_path):
-            potentially_responsible_devices.append(traceroute_path[len(traceroute_path) - 1].node)
-            responsible_index = len(traceroute_path)
-        else:
-            # if traceroute path is longer, but agrees in behavior up to end of desired_path, then the last shared node is responsible
-            potentially_responsible_devices.append(traceroute_path[len(desired_path) - 1].node)
-            responsible_index = len(desired_path)
-
+        potentially_responsible_devices.append( traceroute_path_interfaces[ min_path_length - 1] )
+        responsible_index = traceroute_path_interfaces[ min_path_length - 1]
 
     # Now, let's find any devices that transform that packet... look at all devices that come before this in the list
     ## of devices and scan the list of operations for any kind of packet transforms
-    for i in range(0, responsible_index):
+
+    # first we must map the interface index to the traceroute index, so that we can use the more detailed info present there
+    traceroute_node_index = None #sentinal value
+    responsible_node_name = get_node_name( traceroute_path_interfaces[responsible_index] )
+    for tr_index, traceroute_hop in enumerate(traceroute_path):
+        if traceroute_hop.node == responsible_node_name:
+            traceroute_node_index = tr_index
+
+    for i in range(0, traceroute_node_index):
         if any_transformations_present(traceroute_path[i]):
             potentially_responsible_devices.append( traceroute_path[i].node)
 
@@ -407,16 +487,19 @@ def guess_which_devices_are_responsible_all_paths_system_generated(traceroute_pa
 def any_transformations_present(cur_hop):
     ## TODO: THIS IS NOT THE RIGHT WAY TO DO THIS!! (But it works for now b/c we don't have a motivating scenario...)
     for step in cur_hop.steps:
-        if step.detail.transformedFlow is not None:
-            return True
+        try:
+            if step.detail.transformedFlow is not None:
+                return True
+        except:
+            pass
     return False
 
-def diagnose_root_cause(desired_path, traceroute_path, responsible_device):
+def diagnose_root_cause(desired_path, traceroute_path, responsible_device, type_of_problem):
     ## TODO: I need to write this entire function...
     explanation = []
 
     # Q: Is routing behavior different?
-    if acl_behavior_diferent_p(traceroute_path, desired_path, responsible_device):
+    if acl_behavior_diferent_p(traceroute_path, desired_path, responsible_device, type_of_problem):
         # TODO: this whole section is todo
         pass
     # Q: Is ACL behavior different?
@@ -431,33 +514,58 @@ def diagnose_root_cause(desired_path, traceroute_path, responsible_device):
 
     return explanation
 
-def acl_behavior_diferent_p(traceroute_path, desired_path, responsible_device):
-    mismatch_node_index_tr = find_corresponding_index(traceroute_path, responsible_device)
-    mismatch_tr_hop = traceroute_path[mismatch_node_index_tr]
+def acl_behavior_diferent_p(traceroute_path, desired_path, responsible_device, type_of_problem):
+    # we must map the interface index to the traceroute index, so that we can use the more detailed info present there
+    responsible_device_name = get_node_name(responsible_device)
 
-    # We need to find if the desired path includes an outgoing interface on this node
-    does_desired_path_have_outgoing_interface_on_node = does_desired_path_hop_have_outgoing_interface(desired_path, responsible_device)
+    # get the interface actions that take place on the device that we think is reponsible
+    interface_by_interface_potential_desired_path = standardize_desired_paths_format(desired_path, type_of_problem)
+    desired_path_node_interface_actions = get_interface_actions(interface_by_interface_potential_desired_path, responsible_device_name)
+    traceroute_path_interfaces = construct_interface_by_interface_hops(traceroute_path)
+    traceroute_path_node_interface_actions = get_interface_actions(traceroute_path_interfaces, responsible_device_name)
 
-    # TODO : eventually need to modify the desired_path graph generation representation... but for now it is okay b/c we are using inputted desired_path
-    does_traceroute_have_outgoing_interface_on_node   = does_traceroute_hop_have_outgoing_interface( mismatch_tr_hop )
-    # okay, let's handle determining whether or not the ACL behavior is incorrect.
-    ## First, is there an outgoing hop in the desired_path but packet is blocked by ACL in current device -> then blame ACL (for blocking)
-    if does_desired_path_have_outgoing_interface_on_node and not does_traceroute_have_outgoing_interface_on_node:
-        return True
-    ## Second, is there no outgoing interface in the desired_path but there is in the current tracereoute_path -> blame ACL (for allowing)
-    if not does_desired_path_have_outgoing_interface_on_node and does_traceroute_have_outgoing_interface_on_node:
-        return True
-    ## Else, the ACL is not the problem
-    return False
+    # now, extract the actions related to ACLs and check if they are the same for the desired and tracerotue nodes
+    # (Are they the same or different?)
+    desired_path_node_interface_acl_actions = get_acl_related_actions(desired_path_node_interface_actions)
+    traceroute_path_node_interface_acl_actions = get_acl_related_actions(traceroute_path_node_interface_actions)
+    acl_interface_actions_are_the_same = True
+    ##### TODO
+    if len(desired_path_node_interface_acl_actions) != len(traceroute_path_node_interface_acl_actions):
+        acl_interface_actions_are_the_same = False
+    else:
+        for acl_action_index in range(0, len(desired_path_node_interface_acl_actions)):
+            desired_path_action =    desired_path_node_interface_acl_actions[acl_action_index]
+            traceroute_path_action = traceroute_path_node_interface_acl_actions[acl_action_index]
+            if desired_path_action != traceroute_path_action:
+                acl_interface_actions_are_the_same = False
 
+    return (not acl_interface_actions_are_the_same)
+
+def get_acl_related_actions(list_of_node_actions):
+    acl_actions = []
+    for action in list_of_node_actions:
+        if 'TRANSMITTED' in action or 'TRANSMITED' in action or 'RECEIVED' in action or 'DENIED' in action:
+            acl_actions.append(action)
+    return acl_actions
+
+def get_interface_actions(interface_by_interface_hops, responsilbe_device_name):
+    interface_actions = []
+    for desired_activity_and_interface in interface_by_interface_hops:
+        if responsilbe_device_name in desired_activity_and_interface:
+            if ':' in desired_activity_and_interface:
+                action = desired_activity_and_interface.split(':')[0]
+                interface_actions.append(action)
+    return interface_actions
+
+## TODO: this function requires quite a bit of work...
 def does_desired_path_hop_have_outgoing_interface(desired_path, responsible_device):
     does_desired_path_have_outgoing_interface_on_node = False
     for desired_activity_and_interface in desired_path:
-        desired_node = get_node_name(desired_activity_and_interface)
-        if desired_node == responsible_device:
-            node_activity = get_node_activity(desired_activity_and_interface)
-            if node_activity == 'FORWARD' or node_activity == "TRANSMITED" or node_activity == "OUTGOING" or node_activity == "TRANSMITTED":
+        if responsible_device in desired_activity_and_interface:
+            if 'FORWARD' in desired_activity_and_interface or 'TRANSMITED' in desired_activity_and_interface or \
+               'OUTGOING' in desired_activity_and_interface or 'TRANSMITTED' in desired_activity_and_interface:
                 does_desired_path_have_outgoing_interface_on_node = True
+
     return does_desired_path_have_outgoing_interface_on_node
 
 def does_traceroute_hop_have_outgoing_interface(tr_hop):
@@ -505,9 +613,26 @@ def construct_interface_by_interface_hops(forward_hops):
         current_node_steps = forward_hops[i].steps
         incoming_interface = current_node_steps[0]
         outgoing_interface = current_node_steps[-1]
-        interface_by_interface_hops.append( incoming_interface.action + ':' + cur_node + '[' + incoming_interface.detail.inputInterface + ']' )
-        #if outgoing_interface.action == "EXITS_NETWORK":
-        #    pass
+
+        # first add the incoming interface
+        try:
+            interface_by_interface_hops.append( incoming_interface.action + ':' + cur_node + '[' + incoming_interface.detail.inputInterface + ']' )
+        except:
+            pass ## TODO: will definitely need to do more here!!
+
+        interface_by_interface_hops.append(cur_node)
+        '''
+        # then add the node - unless it is the last (not needed because drops are properties of interfaces)
+        found_intermediate_step = False
+        for on_node_step in current_node_steps[1:-1]:
+            if on_node_step.action == "ACCEPTED" or on_node_step.action == "DENIED":
+                found_intermediate_step = True
+                interface_by_interface_hops.append( on_node_step.action + ':' + cur_node )
+        if not found_intermediate_step:
+            interface_by_interface_hops.append('AT_NODE:' + cur_node)
+        '''
+
+        # finally, add the outgoing interface
         try:
             interface_by_interface_hops.append( outgoing_interface.action + ':'  + cur_node + '[' + outgoing_interface.detail.inputInterface + ']' )
         except:

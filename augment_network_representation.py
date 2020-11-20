@@ -294,19 +294,19 @@ def add_edges_to_graphs(edge_dataframe, G, G_layer_2, G_layer_3, color_map, edge
         local_interface = edge[1]['Interface']
         local_device = local_interface.hostname
         local_vlan = local_interface.interface
-        G.add_node(str(local_interface), type='interface', name=str(local_interface))
+        ##G.add_node(str(local_interface), type='interface', name=str(local_interface))
 
         color_map.append('lightgreen')
-        G.add_edge(local_device, local_interface)
+        ##G.add_edge(str(local_device), str(local_interface))
         local_ip, remote_ip = list(edge[1]['IPs']), list(edge[1]["Remote_IPs"])
 
         remote_interface = edge[1]['Remote_Interface']
         remote_device = remote_interface.hostname
         remote_vlan = remote_interface.interface
         print("lr", local_interface, remote_interface)
-        G.add_node(str(remote_interface), type='interface', name=str(remote_interface))
+        ##G.add_node(str(remote_interface), type='interface', name=str(remote_interface))
         color_map.append('lightgreen')
-        G.add_edge(remote_device, remote_interface)
+        ###G.add_edge(str(remote_device), str(local_interface))
 
         edge_interfaces.add(local_interface)
         edge_interfaces.add(remote_interface)
@@ -330,7 +330,7 @@ def add_edges_to_graphs(edge_dataframe, G, G_layer_2, G_layer_3, color_map, edge
                 pass
                 #exit('why does local_vlan not equal remote_vlan!?!')
 
-        G.add_edge(local_interface, remote_interface)
+        G.add_edge(str(local_interface), str(remote_interface))
         if local_ip is not None and remote_ip is not None:
             # the problem with this is that it doesn't make the type of diagrams that I am looking for
             # G_layer_3.add_edge(local_device, remote_device)

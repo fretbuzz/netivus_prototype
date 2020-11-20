@@ -15,18 +15,19 @@ import ipaddress
 
 
 def main(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_ip, src_ip, desired_path, problematic_path,
-         no_interactive_flag, type_of_problem, end_location, srcPort, dstPort, ipProtocol):
+         no_interactive_flag, type_of_problem, end_location, srcPort, dstPort, ipProtocol, return_after_recreation=False):
 
-    G_layer_2, G_layer_3, explanation = run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location,
+    G_layer_2, G_layer_3, explanation, should_we_debug_the_path_forward = run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location,
                                                     dst_ip, src_ip, problematic_path, no_interactive_flag, type_of_problem,
-                                                    end_location, srcPort, dstPort, ipProtocol, desired_path)
+                                                    end_location, srcPort, dstPort, ipProtocol, desired_path,
+                                                    return_after_recreation)
     print("Explanation: " + str(explanation))
 
-    return G_layer_2, G_layer_3, explanation
+    return G_layer_2, G_layer_3, explanation, should_we_debug_the_path_forward
 
 def run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_ip, src_ip, problematic_path,
                 no_interactive_flag, type_of_problem, end_location, srcPort, dstPort, ipProtocol, desired_path,
-                DEBUG=True, protocol='tcp', return_after_initialization = False):
+                return_after_recreation, DEBUG=True, protocol='tcp', return_after_initialization = False, ):
 
     #% run startup.py
     #bf_session.host = "172.0.0.1"  # <batfish_service_ip>
@@ -105,11 +106,11 @@ def run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_
         return start_location, end_location, dst_ip, src_ip, protocol, desired_path, type_of_problem, intermediate_scenario_directory, NETWORK_NAME, SNAPSHOT_NAME, DEBUG
 
     print("desired_path", desired_path)
-    explanation = debug_network_problem(start_location, end_location, dst_ip, src_ip, protocol, desired_path,
+    explanation, should_we_debug_the_path_forward = debug_network_problem(start_location, end_location, dst_ip, src_ip, protocol, desired_path,
                                         type_of_problem, intermediate_scenario_directory, srcPort, dstPort, ipProtocol,
-                                        NETWORK_NAME, SNAPSHOT_NAME, DEBUG)
+                                        NETWORK_NAME, SNAPSHOT_NAME, DEBUG, return_after_recreation)
 
-    return G_layer_2, G_layer_3, explanation
+    return G_layer_2, G_layer_3, explanation, should_we_debug_the_path_forward
 
 def specify_nodes_to_remove_in_graph(G):
 
@@ -352,20 +353,39 @@ if __name__ == "__main__":
         SNAPSHOT_NAME = "synthetic_acl_shadowed_blocked_but_should_be_allowed"
         SNAPSHOT_PATH = "./synthetic_scenarios/blocked_but_should_be_allowed/acl_shadowed"
 
-    elif args.netivus_experiment == "synthetic_explicit_acl_drop_packets":
-        NETWORK_NAME = "synthetic_explicit_acl_drop_packets"
-        SNAPSHOT_NAME = "synthetic_explicit_acl_drop_packets"
-        SNAPSHOT_PATH = "./synthetic_scenarios/blocked_but_should_be_allowed/explicit_acl_drop_packets"
+    elif args.netivus_experiment == "synthetic_explicit_acl_drop_packets_forward":
+        NETWORK_NAME = "synthetic_explicit_acl_drop_packets_forward"
+        SNAPSHOT_NAME = "synthetic_explicit_acl_drop_packets_forward"
+        SNAPSHOT_PATH = "./synthetic_scenarios/simple_errors_no_refinement/blocked_but_should_be_allowed/explicit_acl_drop_packets_forward"
 
         # problem info
         type_of_problem = 'Connecitivity_Blocked_But_Should_Be_Allowed'
         src_ip = '2.128.0.101'
         dst_ip = '2.128.1.101'
+        srcPort = "22"
+        dstPort = "22"
+        ipProtocol = 'tcp'
+        start_location = 'host1'
+        end_location = 'host2'
+        desired_path = None  # Not needed for this type of problem
+        problematic_path = None  # not needed by this system, for any task
+
+    elif args.netivus_experiment == "synthetic_explicit_acl_drop_packets_return":
+        NETWORK_NAME = "synthetic_explicit_acl_drop_packets_return"
+        SNAPSHOT_NAME = "synthetic_explicit_acl_drop_packets_return"
+        SNAPSHOT_PATH = "./synthetic_scenarios/simple_errors_no_refinement/blocked_but_should_be_allowed/explicit_acl_drop_packets_return"
+
+        # problem info
+        type_of_problem = 'Connecitivity_Blocked_But_Should_Be_Allowed'
+        src_ip = '2.128.0.101'
+        dst_ip = '2.128.1.101'
+        srcPort = "22"
+        dstPort = "22"
+        ipProtocol = 'tcp'
         start_location = 'host1[eth0]'
         end_location = 'host2[eth0]'
-        desired_path = ['RECEIVED:as2dept1[GigabitEthernet2/0]', 'TRANSMITED:as2dept1[GigabitEthernet3/0]',
-                        'RECEIVED:host2[eth0]']
-        problematic_path = None # not needed by this system, for any task
+        desired_path = None  # Not needed for this type of problem
+        problematic_path = None  # not needed by this system, for any task
 
     elif args.netivus_experiment == "synthetic_interface_mismatch_vlan_tagging":
         NETWORK_NAME = "synthetic_interface_mismatch_vlan_tagging"
@@ -375,7 +395,18 @@ if __name__ == "__main__":
     elif args.netivus_experiment == "synthetic_route_pkts_the_wrong_way":
         NETWORK_NAME = "synthetic_route_pkts_the_wrong_way"
         SNAPSHOT_NAME = "synthetic_route_pkts_the_wrong_way"
-        SNAPSHOT_PATH = "./synthetic_scenarios/blocked_but_should_be_allowed/synthetic_route_pkts_the_wrong_way"
+        SNAPSHOT_PATH = "./synthetic_scenarios/simple_errors_no_refinement/blocked_but_should_be_allowed/static_route_sends_pkts_the_wrong_way"
+
+        type_of_problem = 'Connecitivity_Blocked_But_Should_Be_Allowed'
+        src_ip = '2.128.0.101'
+        dst_ip = '2.128.1.101'
+        srcPort = "22"
+        dstPort = "22"
+        ipProtocol = 'tcp'
+        start_location = 'host1[eth0]'
+        end_location = 'host2[eth0]'
+        desired_path = None  # Not needed for this type of problem
+        problematic_path = None  # not needed by this system, for any task
 
     elif args.netivus_experiment == "synthetic_acl_shadowed":
         pass
