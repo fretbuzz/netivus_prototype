@@ -13,6 +13,8 @@ def collab_suggests_refinement(graph_path, list_of_pkt_header_restrictions, list
     # this function is for asking the collaborator how to refine a network model
     # graph_path MUST be a gif file!
 
+    print('list_of_refinement_methods', list_of_refinement_methods)
+
     table_headers = ['Root Cause', 'Responsible Node', 'Assumed desired path']
     main_tab_layout = [[sg.Text('Collaborator: Suggest Refinement Please')],
               [sg.Image(graph_path)],
@@ -56,16 +58,47 @@ def collab_fixes_config_file(relevant_config_file_text, choices_tab_layout):
     # purpose of this function is to display the config file to the user, so that they can fix it.
     # for now, we show the exact config file, let them edit it, and then save it (and recreate the model to check)
     main_tab_layout = [[sg.Text('Collaborator: Please fix this config file')],
-                        [sg.Multiline(default_text=relevant_config_file_text, key='-IN-', size = (160, 80), enter_submits=False)],
+                        [sg.Multiline(default_text=relevant_config_file_text, key='-IN-', size = (120, 50), enter_submits=False)],
                        [sg.Submit(), sg.Cancel()]]
 
-    window = sg.Window('Window Title', main_tab_layout)
+    window = sg.Window('Window Title', main_tab_layout, font='Courier 14')
 
     event, values = window.read()
     window.close()
 
     text_input = values['-IN-']
     #sg.popup('You entered', text_input)
+    return text_input
+
+def user_says_if_fix_works(relevant_config_file_text, config_file_name, high_level_root_cause):
+    table_headers = ['Root Cause', 'Responsible Node', 'Assumed desired path']
+    main_tab_layout = [[sg.Text('Collaborator: Please fix this config file')],
+                       [sg.Text('High-level root-cause: ' )],
+                       [sg.Table(values=[high_level_root_cause], display_row_numbers=False,
+                                 headings=table_headers, max_col_width=150, auto_size_columns=True)],
+                       [sg.Text('Config file: ' + config_file_name)],
+                       [sg.Multiline(default_text=relevant_config_file_text, key='-IN-', size=(120, 50),
+                                     write_only=True)],
+                       [sg.Text('--------')],
+                       [sg.Text('--------')],
+                       [sg.Text('Did the modified config file work?')],
+                       [sg.Combo(['Yes', 'No'], key="-WORK-")],
+                       [sg.Submit(), sg.Cancel()]]
+
+    window = sg.Window('Window Title', main_tab_layout, font='Courier 14')
+
+    event, values = window.read()
+    window.close()
+
+    text_input = values['-WORK-']
+    if text_input == "Yes":
+        problem_fixed = True
+    elif text_input == "No":
+        problem_fixed = False
+    else:
+        raise("How was this a text_input???")
+    # sg.popup('You entered', text_input)
+    print("text_input", problem_fixed)
     return text_input
 
 def user_clarifies_refinement():
@@ -85,4 +118,5 @@ if __name__ == "__main__":
 
     #######################################
     #collab_suggests_refinement(graph_path, list_of_pkt_header_restrictions, list_of_refinement_methods, config_file_text_list)
-    collab_fixes_config_file('This is an example config file This is an example config file This is an example config file This is an example config file This is an example config filev', None)
+    #collab_fixes_config_file('This is an example config file This is an example config file This is an example config file This is an example config file This is an example config filev', None)
+    user_says_if_fix_works('This is an example config file This is an example config file This is an example config file This is an example config file This is an example config file', 'test_file.txt', ["need to polish the device", "dd", "ee"])

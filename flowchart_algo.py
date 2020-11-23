@@ -9,7 +9,7 @@ from augment_network_representation import generate_graph_representations
 import networkx as nx
 import ipaddress
 import pickle
-from gui import collab_suggests_refinement, collab_fixes_config_file
+from gui import collab_suggests_refinement, collab_fixes_config_file, user_says_if_fix_works
 import visualization
 import subprocess
 
@@ -69,11 +69,12 @@ def debug_network_problem(start_location, end_location, dst_ip, src_ip, protocol
             possible_explanations = generate_guesses_for_remediation(path_to_debug, given_desired_path, desired_path, type_of_problem)
 
             while True:
+                # TODO: switch G_layer_2 to G
                 collab_approved_potential_root_causes, collab_approved_potential_fix = \
                     collaborate_indicates_potential_root_causes_and_fixes(possible_explanations, srcPort, dstPort,
                                                                           ipProtocol, start_location, end_location,
                                                                           dst_ip, src_ip, protocol, type_of_problem,
-                                                                          G, color_map, intermediate_scenario_directory)
+                                                                          G_layer_2, color_map, intermediate_scenario_directory)
 
                 print("updated collab_approved_potential_fix file:", collab_approved_potential_fix)
 
@@ -92,7 +93,7 @@ def debug_network_problem(start_location, end_location, dst_ip, src_ip, protocol
                     continue
 
                 # if it did fix it (according to our model), then we can ask the admin if this really does fix it
-                correct_root_cause, must_revise_network_model, new_constraints = admin_checks_root_cause(collab_approved_potential_root_causes)
+                correct_root_cause, must_revise_network_model, new_constraints = admin_checks_root_cause(collab_approved_potential_root_causes, collab_approved_potential_fix)
 
                 if correct_root_cause:
                     return correct_root_cause, should_we_debug_the_path_forward
@@ -104,6 +105,19 @@ def debug_network_problem(start_location, end_location, dst_ip, src_ip, protocol
 
             if must_revisit_network_model:
                 break
+
+def admin_checks_root_cause(collab_approved_potential_root_causes, collab_approved_potential_fix):
+    # the purpose of this function is to show the changes to the admin and have them tell you if they worked
+    # most work will be offloaded to a function in the gui file
+    device = collab_approved_potential_fix[0]
+    new_config_file_text = collab_approved_potential_fix[1]
+    path_to_this_config_file = collab_approved_potential_fix[2]
+
+    print("collab_approved_potential_root_causes", collab_approved_potential_root_causes)
+    did_it_work = user_says_if_fix_works(new_config_file_text, device, high_level_root_cause=collab_approved_potential_root_causes)
+
+    # TODO: must eventually implement the rest of this...
+    return did_it_work, None, None
 
 def check_if_suggested_solution_works_on_model(intermediate_scenario_directory, DEBUG, NETWORK_NAME, SNAPSHOT_NAME,
                                                type_of_problem, start_location, dst_ip, src_ip, end_location, srcPort,
@@ -172,9 +186,6 @@ def construct_list_of_pkt_header_restrictions(srcPort, dstPort, ipProtocol, star
     list_of_pkt_restrictions.append("end_location: " + str(end_location))
     return list_of_pkt_restrictions
 
-def admin_checks_root_cause(collab_approved_potential_root_causes):
-    pass
-
 def print_status_of_reproduction(can_problem_be_recreated_p, problematic_path_forward, problematic_path_return,
                                          type_of_problem, start_location, dst_ip, src_ip, end_location):
     print("--------------------")
@@ -214,11 +225,14 @@ def can_problem_be_recreated(type_of_problem, start_location, dst_ip, src_ip, en
     #final_node = forward_hops[-1].node
     print("forward_hops", forward_hops)
     print("return_hops", return_hops)
-    forward_final_interface = find_final_interface(forward_hops, forward=True)
-    return_final_interface = find_final_interface(return_hops, forward=False)
+    forward_final_interface, forward_final_node = find_final_interface_and_node(forward_hops, forward=True)
+    return_final_interface, return_final_node = find_final_interface_and_node(return_hops, forward=False)
 
-    src_can_reach_dst_p = (forward_final_interface == end_location)
-    dst_can_reach_src_p = (return_final_interface == start_location)
+    # start_location and end_location can be specified as devices (instead of interfaces),
+    # so we need to check that case too
+    src_can_reach_dst_p = (forward_final_interface == end_location) or (forward_final_node == end_location)
+    dst_can_reach_src_p = (return_final_interface == start_location) or (return_final_node == start_location)
+
 
     should_we_debug_the_path_forward = None #### if we can
     can_we_recreate_the_problem_p = None
@@ -281,9 +295,9 @@ def can_problem_be_recreated(type_of_problem, start_location, dst_ip, src_ip, en
     return can_we_recreate_the_problem_p, forward_hops, return_hops, should_we_debug_the_path_forward, return_immediately
 
 
-def find_final_interface(forward_hops, forward):
+def find_final_interface_and_node(forward_hops, forward):
     if forward_hops is None:
-        return None
+        return None, None
 
     final_node = forward_hops[-1]
     # not sure if the final behavior will be recieving or transmitting, so we must scan for both
@@ -329,7 +343,7 @@ def find_final_interface(forward_hops, forward):
                     final_interface = final_node.node + '[' + step.detail.outputInterface + ']'
             '''
 
-    return final_interface
+    return final_interface, final_node.node
 
 def find_transmitted_interface(device_activity):
     recieved_interface = None
