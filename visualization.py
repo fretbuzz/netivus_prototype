@@ -8,7 +8,7 @@ import ipaddress
 import matplotlib.pyplot as plt
 
 def plot_graph(G_layer_2, color_map, fig_number, title, show=True, layer_2=False, filename=None):
-    fig = plt.figure(fig_number, figsize=(12, 12))
+    fig = plt.figure(fig_number, figsize=(9, 4))
     fig.clf()
     ax = fig.add_subplot(111)
     #fig, ax = plt.subplots(1)
@@ -43,7 +43,7 @@ def plot_graph(G_layer_2, color_map, fig_number, title, show=True, layer_2=False
             verticalalignment='top', bbox=props)
     ##############
     #labels = nx.draw_networkx_labels(G, pos=nx.spring_layout(G))
-    #plt.tight_layout()
+    plt.tight_layout()
     # now make the subplot size slightly larger...
     plt.draw()
     if filename is not None:

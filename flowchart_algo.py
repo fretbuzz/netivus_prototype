@@ -9,6 +9,9 @@ from augment_network_representation import generate_graph_representations
 import networkx as nx
 import ipaddress
 import pickle
+from gui import collab_suggests_refinement, collab_fixes_config_file
+import visualization
+import subprocess
 
 def debug_network_problem(start_location, end_location, dst_ip, src_ip, protocol, desired_path, type_of_problem,
                           intermediate_scenario_directory, srcPort, dstPort, ipProtocol, NETWORK_NAME, SNAPSHOT_NAME, DEBUG,
@@ -18,6 +21,10 @@ def debug_network_problem(start_location, end_location, dst_ip, src_ip, protocol
         given_desired_path = True
 
     while True:
+        # make sure that graph representation is up to date...
+        G, G_layer_2, G_layer_3, color_map = generate_graph_representations(intermediate_scenario_directory, DEBUG,
+                                                                            NETWORK_NAME, SNAPSHOT_NAME)
+
         # TODO: is the topology connecteD?
         is_topology_connected()
 
@@ -54,21 +61,119 @@ def debug_network_problem(start_location, end_location, dst_ip, src_ip, protocol
 
         #if desired_path_index > len(desired_paths):
         #    raise('ran out of desired paths to examine')
-
+        must_revisit_network_model = False
         for index in range(0, len(desired_paths)):
             overlap_score, desired_path = desired_paths[index]
             # TODO: for a given problematic path, guess which device is responsible
             ## rank these in order from most likely responsible to least likely responsible
             possible_explanations = generate_guesses_for_remediation(path_to_debug, given_desired_path, desired_path, type_of_problem)
 
-            was_one_root_cause_correct_p, correct_explanation, must_revise_network_model = was_one_root_cause_correct(possible_explanations)
-            if was_one_root_cause_correct_p:
-                return correct_explanation, should_we_debug_the_path_forward
-            elif must_revise_network_model:
-                ## TODO: the model will have already been refined, so now we just must recreate the model by rerunning Batfish
-                generate_graph_representations(intermediate_scenario_directory, False, NETWORK_NAME, SNAPSHOT_NAME)
-                ####
+            while True:
+                collab_approved_potential_root_causes, collab_approved_potential_fix = \
+                    collaborate_indicates_potential_root_causes_and_fixes(possible_explanations, srcPort, dstPort,
+                                                                          ipProtocol, start_location, end_location,
+                                                                          dst_ip, src_ip, protocol, type_of_problem,
+                                                                          G, color_map, intermediate_scenario_directory)
+
+                print("updated collab_approved_potential_fix file:", collab_approved_potential_fix)
+
+                if collab_approved_potential_root_causes is None:
+                    break
+
+                # now test if the solution worked...
+                is_problem_fixed_on_model_p = check_if_suggested_solution_works_on_model(intermediate_scenario_directory, DEBUG, NETWORK_NAME, SNAPSHOT_NAME,
+                                                                                         type_of_problem, start_location, dst_ip, src_ip, end_location, srcPort,
+                                                                                         dstPort, ipProtocol)
+
+                # if not fixed (according to our model), then write that that did not work and loop
+                if not is_problem_fixed_on_model_p:
+                    # TODO: probably want to do more here (for instance, keep some kinda library of fixes, or whatever)
+                    print("That solution did not work!!")
+                    continue
+
+                # if it did fix it (according to our model), then we can ask the admin if this really does fix it
+                correct_root_cause, must_revise_network_model, new_constraints = admin_checks_root_cause(collab_approved_potential_root_causes)
+
+                if correct_root_cause:
+                    return correct_root_cause, should_we_debug_the_path_forward
+                elif must_revise_network_model:
+                    ## TODO: have operator revise the network model
+                    ## TODO: take into account the additional connectivity constraints
+                    must_revisit_network_model = True
+                    break
+
+            if must_revisit_network_model:
                 break
+
+def check_if_suggested_solution_works_on_model(intermediate_scenario_directory, DEBUG, NETWORK_NAME, SNAPSHOT_NAME,
+                                               type_of_problem, start_location, dst_ip, src_ip, end_location, srcPort,
+                                               dstPort, ipProtocol):
+
+    G, G_layer_2, G_layer_3, color_map = generate_graph_representations(intermediate_scenario_directory, DEBUG,
+                                                                        NETWORK_NAME, SNAPSHOT_NAME)
+
+    can_problem_be_recreated_p, problematic_path_forward, problematic_path_return, should_we_debug_the_path_forward, return_immediately = \
+        can_problem_be_recreated(type_of_problem, start_location, dst_ip, src_ip, end_location, srcPort,
+                                 dstPort, ipProtocol)
+
+    # for now, this return is simple (b/c we only have two types of problems (should connect but can't and can't connect
+    # but should). later, with more of these, we will probably need more complicated logic
+    return (not can_problem_be_recreated_p)
+
+def collaborate_indicates_potential_root_causes_and_fixes(possible_explanations, srcPort, dstPort, ipProtocol,
+                                                          start_location, end_location, dst_ip, src_ip, protocol,
+                                                          type_of_problem, G, color_map,
+                                                          intermediate_scenario_directory):
+    # this function does two things:
+    # (1) shows the list of possible fixes to the admin and have them indicate which is likely
+    # (2) based on the response to (1), have the operator indicate the potential fix (i.e. the step-by-step actions)
+
+    # step one is to display the relevant info to the collab and have them indicate which fix is likely to work
+    # use the GUI function TODO this...
+    network_img_path = intermediate_scenario_directory + '_connecitivty_graph.png'
+    subprocess.check_output(['convert', network_img_path, network_img_path.replace('png','gif')])
+    visualization.plot_graph(G, color_map, fig_number=9, title="Network", show=False, layer_2=False, filename=network_img_path)
+    list_of_pkt_header_restrictions = construct_list_of_pkt_header_restrictions(srcPort, dstPort, ipProtocol, start_location,
+                                                                                end_location, dst_ip, src_ip, protocol,
+                                                                                type_of_problem)
+
+    index_of_refinement_layout_to_try, choice_tab_layout = collab_suggests_refinement( network_img_path.replace('png','gif'), list_of_pkt_header_restrictions, possible_explanations,
+                               config_file_text_list = [])
+
+
+    # now fix the relevant config file
+    file_parse_status_dataframe = bfq.fileParseStatus().answer().frame()
+    relevant_device = possible_explanations[index_of_refinement_layout_to_try][1]
+    parse_status_of_this_device = file_parse_status_dataframe.loc[file_parse_status_dataframe['Nodes'].apply(lambda x: x==[relevant_device])]
+
+    path_to_config_file = intermediate_scenario_directory + '/' + list(parse_status_of_this_device['File_Name'])[0]
+    with open(path_to_config_file, 'r') as f:
+        config_file_text = f.read()
+
+    updated_config_file = collab_fixes_config_file(config_file_text, choices_tab_layout=None)
+    with open(path_to_config_file, 'w') as f:
+        f.write(updated_config_file)
+
+    print("checkpoint_here", parse_status_of_this_device)
+
+    return possible_explanations[index_of_refinement_layout_to_try], (relevant_device, updated_config_file, path_to_config_file)
+
+def construct_list_of_pkt_header_restrictions(srcPort, dstPort, ipProtocol, start_location, end_location, dst_ip,
+                                              src_ip, protocol, type_of_problem):
+    list_of_pkt_restrictions = []
+    list_of_pkt_restrictions.append("type_of_problem: " + str(type_of_problem))
+    list_of_pkt_restrictions.append("src_ip: " + str(src_ip))
+    list_of_pkt_restrictions.append("dst_ip: " + str(dst_ip))
+    list_of_pkt_restrictions.append("src_port: " + str(srcPort))
+    list_of_pkt_restrictions.append("dst_port: " + str(dstPort))
+    list_of_pkt_restrictions.append("protocol: " + str(protocol))
+    list_of_pkt_restrictions.append("ipProtocol: " + str(ipProtocol))
+    list_of_pkt_restrictions.append("start_location: " + str(start_location))
+    list_of_pkt_restrictions.append("end_location: " + str(end_location))
+    return list_of_pkt_restrictions
+
+def admin_checks_root_cause(collab_approved_potential_root_causes):
+    pass
 
 def print_status_of_reproduction(can_problem_be_recreated_p, problematic_path_forward, problematic_path_return,
                                          type_of_problem, start_location, dst_ip, src_ip, end_location):
@@ -97,9 +202,9 @@ def generate_guesses_for_remediation(path_to_debug, given_desired_path, desired_
     responsible_devices = guess_which_devices_are_responsible(path_to_debug, desired_path, given_desired_path, type_of_problem)
 
     for responsible_device in responsible_devices:
-        # TODO: for a given problematic path + device, blame the particular part of the device
+        # for a given problematic path + device, blame the particular part of the device
         potential_explanation = diagnose_root_cause(desired_path, path_to_debug, responsible_device, type_of_problem)
-        possible_explanations.append(potential_explanation)
+        possible_explanations.append( (potential_explanation, get_node_name(responsible_device), " -> ".join(desired_path)) )
 
     return possible_explanations
 
@@ -495,13 +600,16 @@ def any_transformations_present(cur_hop):
     return False
 
 def diagnose_root_cause(desired_path, traceroute_path, responsible_device, type_of_problem):
-    ## TODO: I need to write this entire function...
+    ## TODO: some parts of this function still need to be written
+    ### (but basic ACL functionality should be kinda working now...)
     explanation = []
 
     # Q: Is routing behavior different?
-    if acl_behavior_diferent_p(traceroute_path, desired_path, responsible_device, type_of_problem):
-        # TODO: this whole section is todo
-        pass
+    acl_behavior_differs, desired_path_node_interface_acl_actions, traceroute_path_node_interface_acl_actions = \
+        acl_behavior_diferent_p(traceroute_path, desired_path, responsible_device, type_of_problem)
+    if acl_behavior_differs:
+        acl_explanation =how_is_acl_behavior_different(traceroute_path_node_interface_acl_actions, desired_path_node_interface_acl_actions)
+        return acl_explanation
     # Q: Is ACL behavior different?
     elif routing_behavior_different_p(traceroute_path, desired_path, responsible_device):
         # TODO: this whole section is todo
@@ -513,6 +621,26 @@ def diagnose_root_cause(desired_path, traceroute_path, responsible_device, type_
         pass
 
     return explanation
+
+def how_is_acl_behavior_different(traceroute_interface_actions, desired_interface_actions):
+    # this function determines how the interface actions of the desired and traceroute path are different
+
+    # each device should have at most 2 actions - at ingress and at egress - that involve ACLs
+    if len(traceroute_interface_actions) > 2:
+        raise("traceroute_interface_actions is longer than 2!!")
+    if len(desired_interface_actions) > 2:
+        raise ("desired_interface_actions is longer than 2!!")
+
+    # if the actions don't match at the first action -> then it is an ingress problem
+    if (len(traceroute_interface_actions)<1 and len(desired_interface_actions) >= 1) or \
+        (traceroute_interface_actions[0] != desired_interface_actions[0]):
+        return 'Ingress filter is different'
+
+    # if the actions don't match at the second action -> then it is an egress problem
+    if (len(traceroute_interface_actions)<2 and len(desired_interface_actions) == 2) or \
+       (traceroute_interface_actions[1] != desired_interface_actions[1]) :
+        return 'Egress filter is different'
+
 
 def acl_behavior_diferent_p(traceroute_path, desired_path, responsible_device, type_of_problem):
     # we must map the interface index to the traceroute index, so that we can use the more detailed info present there
@@ -529,7 +657,7 @@ def acl_behavior_diferent_p(traceroute_path, desired_path, responsible_device, t
     desired_path_node_interface_acl_actions = get_acl_related_actions(desired_path_node_interface_actions)
     traceroute_path_node_interface_acl_actions = get_acl_related_actions(traceroute_path_node_interface_actions)
     acl_interface_actions_are_the_same = True
-    ##### TODO
+
     if len(desired_path_node_interface_acl_actions) != len(traceroute_path_node_interface_acl_actions):
         acl_interface_actions_are_the_same = False
     else:
@@ -539,7 +667,7 @@ def acl_behavior_diferent_p(traceroute_path, desired_path, responsible_device, t
             if desired_path_action != traceroute_path_action:
                 acl_interface_actions_are_the_same = False
 
-    return (not acl_interface_actions_are_the_same)
+    return (not acl_interface_actions_are_the_same), desired_path_node_interface_acl_actions, traceroute_path_node_interface_acl_actions
 
 def get_acl_related_actions(list_of_node_actions):
     acl_actions = []

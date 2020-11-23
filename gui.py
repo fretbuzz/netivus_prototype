@@ -2,18 +2,29 @@ import PySimpleGUI as sg
 
 def collab_suggests_refinement(graph_path, list_of_pkt_header_restrictions, list_of_refinement_methods,
                                config_file_text_list):
+    '''
+    :param graph_path: path to image file for graph
+    :param list_of_pkt_header_restrictions: a list of strings (so must include the name of the relevant part of the
+        packet header (e.g., src_ip) as well as the value for that part (e.g., x.x.x.x) in the string
+    :param list_of_refinement_methods: lists to show the collaborator. each option will show up once in the list
+    :param config_file_text_list: list of the text of the config files (so we can show them in tabs)
+    :return: index of selected refinement method
+    '''
     # this function is for asking the collaborator how to refine a network model
     # graph_path MUST be a gif file!
 
+    table_headers = ['Root Cause', 'Responsible Node', 'Assumed desired path']
     main_tab_layout = [[sg.Text('Collaborator: Suggest Refinement Please')],
               [sg.Image(graph_path)],
               [sg.Text("Packet header constraints:")],
               [sg.Text("\n".join(list_of_pkt_header_restrictions))],
               [sg.Text('_'*30)],
               [sg.Text("Possible refinement approaches:")],
-              [sg.Text("\n".join(list_of_refinement_methods))],
+              [sg.Table(values=[list(i) for i in list_of_refinement_methods], display_row_numbers=True,
+                        headings = table_headers, max_col_width=85, auto_size_columns=True)],
+              #[sg.Text("\n".join(["; ".join(i) for i in list_of_refinement_methods] ))],
               [sg.Text('_' * 30)],
-              [sg.Text('Which refinement method do you think should be attempted? (input the number)')],
+              [sg.Text('Which rows show the refinement method that you think should be attempted? (input the number)')],
               [sg.InputText(key='-IN-')],
               [sg.Submit(), sg.Cancel()]]
 
@@ -37,7 +48,25 @@ def collab_suggests_refinement(graph_path, list_of_pkt_header_restrictions, list
     text_input = values['-IN-']
     sg.popup('You entered', text_input)
 
-    pass
+    return int(text_input), main_tab_layout
+
+def collab_fixes_config_file(relevant_config_file_text, choices_tab_layout):
+    # TODO: add the ability to see page where we explain the choices here...
+
+    # purpose of this function is to display the config file to the user, so that they can fix it.
+    # for now, we show the exact config file, let them edit it, and then save it (and recreate the model to check)
+    main_tab_layout = [[sg.Text('Collaborator: Please fix this config file')],
+                        [sg.Multiline(default_text=relevant_config_file_text, key='-IN-', size = (160, 80), enter_submits=False)],
+                       [sg.Submit(), sg.Cancel()]]
+
+    window = sg.Window('Window Title', main_tab_layout)
+
+    event, values = window.read()
+    window.close()
+
+    text_input = values['-IN-']
+    #sg.popup('You entered', text_input)
+    return text_input
 
 def user_clarifies_refinement():
     pass
@@ -55,4 +84,5 @@ if __name__ == "__main__":
     config_file_text_list = ['this is a cisco router!', 'this is another brand of router!']
 
     #######################################
-    collab_suggests_refinement(graph_path, list_of_pkt_header_restrictions, list_of_refinement_methods, config_file_text_list)
+    #collab_suggests_refinement(graph_path, list_of_pkt_header_restrictions, list_of_refinement_methods, config_file_text_list)
+    collab_fixes_config_file('This is an example config file This is an example config file This is an example config file This is an example config file This is an example config filev', None)
