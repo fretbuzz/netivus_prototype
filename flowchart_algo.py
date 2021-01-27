@@ -222,7 +222,10 @@ def generate_guesses_for_remediation(path_to_debug, given_desired_path, desired_
 
 
 def can_problem_be_recreated(type_of_problem, start_location, dst_ip, src_ip, end_location, srcPort, dstPort, ipProtocol):
-    forward_hops, return_hops = run_traceroute(start_location, dst_ip, src_ip, srcPort, dstPort, ipProtocol)
+    if '[' in start_location:
+        forward_hops, return_hops = run_traceroute('@enter(' + start_location + ')', dst_ip, src_ip, srcPort, dstPort, ipProtocol)
+    else:
+        forward_hops, return_hops = run_traceroute(start_location, dst_ip, src_ip, srcPort, dstPort, ipProtocol)
     #final_node = forward_hops[-1].node
     print("forward_hops", forward_hops)
     print("return_hops", return_hops)
