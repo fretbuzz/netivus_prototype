@@ -320,12 +320,18 @@ if __name__ == "__main__":
         NETWORK_NAME = "problem_with_cisco_asa_nat"
         SNAPSHOT_NAME = "problem_with_cisco_asa_nat"
         SNAPSHOT_PATH = "./scenarios/Problem with Cisco ASA 5512 NAT Configuration"
-        start_location = 'asa[Outside]'
-        dst_ip = "10.3.3.128"
+        type_of_problem = 'Connecitivity_Blocked_But_Should_Be_Allowed'
         src_ip = "62.5.3.226"
-        #desired_path = ['RECEIVED:ASA[GigabitEthernet0/0]', 'OUTGOING:ASA[GigabitEthernet0/1]']
-        desired_path = ['RECEIVED:asa[Outside]', 'OUTGOING:asa[Inside]']
-        problematic_path = ['RECEIVED:asa[Outside]', 'DENIED:asa[Inside]']
+        dst_ip = "10.3.3.128"
+        src_port = "20"
+        dst_port = "20"
+        ipProtocol = 'tcp'
+        start_location = 'asa[Outside]'
+        end_location = 'asa[Inside]'
+        desired_path = None  # Not needed for this type of problem
+        problematic_path = None  # not needed by this system, for any task
+        #desired_path = ['RECEIVED:asa[Outside]', 'OUTGOING:asa[Inside]']
+        #problematic_path = ['RECEIVED:asa[Outside]', 'DENIED:asa[Inside]']
 
     elif args.netivus_experiment == "private_lan_cannot_access_internet":
         # Cisco 1921 private LAN can't access internet on WAN interface
