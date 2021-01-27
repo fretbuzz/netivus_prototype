@@ -169,7 +169,7 @@ if __name__ == "__main__":
         dst_ip = '10.10.20.8'
         ipProtocol = 'tcp'
         start_location = 'abc-3850parts[GigabitEthernet1/1/2]'
-        end_location = "voip_server"
+        end_location = "voip_server[eth0]"
         desired_path = None  # Not needed for this type of problem
         problematic_path = None  # not needed by this system, for any task
 
