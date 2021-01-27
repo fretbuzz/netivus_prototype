@@ -106,6 +106,10 @@ def run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_
         return start_location, end_location, dst_ip, src_ip, protocol, desired_path, type_of_problem, intermediate_scenario_directory, NETWORK_NAME, SNAPSHOT_NAME, DEBUG
 
     print("desired_path", desired_path)
+
+    # this will get the device facts in a vendor-neutral format
+    # bf_session.extract_facts()
+
     explanation, should_we_debug_the_path_forward = debug_network_problem(start_location, end_location, dst_ip, src_ip, protocol, desired_path,
                                         type_of_problem, intermediate_scenario_directory, srcPort, dstPort, ipProtocol,
                                         NETWORK_NAME, SNAPSHOT_NAME, DEBUG, return_after_recreation)

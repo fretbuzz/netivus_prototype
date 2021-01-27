@@ -168,7 +168,7 @@ def generate_graph_representations(intermediate_scenario_directory, DEBUG, NETWO
         print("----------------------")
 
         # vxlanEdges,layer3Edges
-        node_properties_trunc = bfq.nodeProperties(properties="Device_Type,Interfaces").answer().frame()
+        node_properties_trunc = bfq.nodeProperties(properties="Interfaces").answer().frame()
 
         print(node_properties_trunc)
 
@@ -281,7 +281,7 @@ def generate_layer_1_topology_config_file(filename, hostname1, interface1,  host
 def add_devices_to_graphs(device_dataframe, G, G_layer_2, G_layer_3, color_map):
     for device in device_dataframe.iterrows():
         device_name = device[1]['Node']
-        device_type = device[1]['Device_Type']
+        device_type = "device_type_support_not_added_yet"#device[1]['Device_Type']
         print(device_name, device_type)
         G.add_node(str(device_name), type=device_type, name=str(device_name))
         G_layer_2.add_node(str(device_name), type=device_type, name=str(device_name))
