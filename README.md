@@ -1,6 +1,6 @@
 ## setup instrunctions ##
 
-Step 0: Install docker
+Step 0: Install docker and python 3.8
 
 Step 1: install + start the batfish docker container
 
