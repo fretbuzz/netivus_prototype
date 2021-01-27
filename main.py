@@ -229,17 +229,21 @@ if __name__ == "__main__":
         NETWORK_NAME = "Juniper_SRX240_and_EX2200_network"
         SNAPSHOT_NAME = "Juniper_SRX240_and_EX2200_network"
         SNAPSHOT_PATH = "./scenarios/Juniper SRX240 and EX2200 network"
+        type_of_problem = 'Connecitivity_Blocked_But_Should_Be_Allowed'
+        src_ip = '192.168.1.5'
+        dst_ip = '8.8.8.8'
+        ipProtocol = 'tcp'
+        start_location = 'ex2200[ge-0/0/13]'
+        end_location = 'ex2200[WAN]'
+        desired_path = None  # Not needed for this type of problem
+        problematic_path = None  # not needed by this system, for any task
         #'''
         # host on ex2200 trying to reach the WAN (srx240[ge0/0/0.0])
-        start_location = 'ex2200[ge-0/0/13]'
-        dst_ip = '8.8.8.8'
-        src_ip = '192.168.1.5'
-        #desired_path = ['ex2200', 'srx240', 'internet']
-        desired_path = ['RECEIVED:ex2200[ge-0/0/13]', 'TRANSMITED:ex2200[ge-0/0/22]', 'TRANSMITED:srx240[ge-0/0/1]',
-                        'TRANSMITED:srx240[ge-0/0/0]', 'RECEIVED:WAN']
-        problematic_path = ['RECEIVED:ex2200[ge-0/0/13]', 'EXITS_NETWORK:ex2200[vlan.100]']
-        type_of_problem = 'Connecitivity_Blocked'
-        end_location = 'ex2200[WAN]'
+        #desired_path = ['RECEIVED:ex2200[ge-0/0/13]', 'TRANSMITED:ex2200[ge-0/0/22]', 'TRANSMITED:srx240[ge-0/0/1]',
+        #                'TRANSMITED:srx240[ge-0/0/0]', 'RECEIVED:WAN']
+        #problematic_path = ['RECEIVED:ex2200[ge-0/0/13]', 'EXITS_NETWORK:ex2200[vlan.100]']
+        #type_of_problem = 'Connecitivity_Blocked'
+
         #'''
     elif args.netivus_experiment == "Juniper_SRX240_and_EX2200_network_FIXED":
         # not actually fixed haha
