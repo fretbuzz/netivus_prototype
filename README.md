@@ -10,10 +10,14 @@ docker pull batfish/allinone
 docker run --name batfish -v batfish-data  -p 8888:8888 -p 9997:9997 -p 9996:9996 batfish/allinone
 ```
 
-Step 2: install pybatfish + other required library
+Step 2a: install pybatfish
 ```
 python3 -m pip install --upgrade pybatfish
-pip3 install -r requirements.txt
+```
+
+Step 2b: Install other libraries required by Netivus:
+```
+pip3 install -r requirements.txt # requirements.txt can be found in the current directory
 ```
 
 
