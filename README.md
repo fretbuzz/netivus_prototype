@@ -16,10 +16,8 @@ python3 -m pip install --upgrade pybatfish
 pip3 install -r requirements.txt
 ```
 
-Step 3: Go into main_basic.py and uncomment which of the 4 scenarios that you want to run. To be specific, uncomment the lines
-for NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH for that scenario.
 
-Step 4: You are now ready to run main.py via
+Step 3: You are now ready to run main.py via
 
 ```
 python main.py --netivus_experiment [experiment_name]
