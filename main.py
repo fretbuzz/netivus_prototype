@@ -309,10 +309,14 @@ if __name__ == "__main__":
         NETWORK_NAME = "dhcp_config"
         SNAPSHOT_NAME = "dhcp_config"
         SNAPSHOT_PATH = "./scenarios/DHCP Configurauion on Cisco router"
-        start_location = 'router250[Ethernet1/1]'  # TODO
-        #start_location = 'a_host[eth0]'  # TODO
-        dst_ip = '20.0.0.2'  # TODO
-        src_ip = '40.0.0.15'  # TODO
+        type_of_problem = 'Connecitivity_Blocked_But_Should_Be_Allowed'
+        src_ip = '40.0.0.15'
+        dst_ip = '20.0.0.2'
+        ipProtocol = 'DHCP'
+        start_location = 'router250[Ethernet1/1]'
+        end_location = 'Router450[Ethernet0/0]'
+        desired_path = None  # Not needed for this type of problem
+        problematic_path = None  # not needed by this system, for any task
 
     elif args.netivus_experiment == "cannot_access_inside_from_outside":
         NETWORK_NAME = "cannot_access_inside_from_outside"
