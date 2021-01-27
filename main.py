@@ -71,8 +71,8 @@ def run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_
 
     G, G_layer_2, G_layer_3, color_map = generate_graph_representations(intermediate_scenario_directory, DEBUG, NETWORK_NAME, SNAPSHOT_NAME)
 
-    plot_graph(G_layer_3, color_map, fig_number=5, title='layer_3_connectivity', layer_2=False)
-    plot_graph(G_layer_2, color_map, fig_number=4, title='layer_2_connectivity', layer_2=True)
+    #plot_graph(G_layer_3, color_map, fig_number=5, title='layer_3_connectivity', layer_2=False)
+    #plot_graph(G_layer_2, color_map, fig_number=4, title='layer_2_connectivity', layer_2=True)
 
     if not no_interactive_flag:
         G_layer_2, interface_information_inputted_manually = discover_important_device_info(G_layer_2, color_map,
@@ -96,11 +96,11 @@ def run_batfish(NETWORK_NAME, SNAPSHOT_NAME, SNAPSHOT_PATH, start_location, dst_
                                               NETWORK_NAME=NETWORK_NAME,
                                               SNAPSHOT_NAME=SNAPSHOT_NAME)
 
-    plot_graph(G_layer_3, color_map, fig_number=5, title='layer_3_connectivity',
-               layer_2=False, filename="./outputs/" + NETWORK_NAME + "/interface_connectivity_diagram.png")
+    #plot_graph(G_layer_3, color_map, fig_number=5, title='layer_3_connectivity',
+    #           layer_2=False, filename="./outputs/" + NETWORK_NAME + "/interface_connectivity_diagram.png")
 
-    plot_graph(G, color_map, fig_number=6, title='Interace_connectivity',
-               layer_2=False, filename="./outputs/" + NETWORK_NAME + "/layer_3_diagram.png")
+    #plot_graph(G, color_map, fig_number=6, title='Interace_connectivity',
+    #           layer_2=False, filename="./outputs/" + NETWORK_NAME + "/layer_3_diagram.png")
 
     if return_after_initialization:
         return start_location, end_location, dst_ip, src_ip, protocol, desired_path, type_of_problem, intermediate_scenario_directory, NETWORK_NAME, SNAPSHOT_NAME, DEBUG
