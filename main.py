@@ -353,7 +353,7 @@ if __name__ == "__main__":
         NETWORK_NAME = "private_lan_cannot_access_internet"
         SNAPSHOT_NAME = "private_lan_cannot_access_internet"
         SNAPSHOT_PATH = "./scenarios/Cisco 1921 private LAN can't access internet on WAN interface"
-        type_of_problem = 'Connecitivity_Blocked_But_Should_Be_Allowed'
+        type_of_problem = "Connecitivity_Blocked_But_Should_Be_Allowed"
         src_ip = '10.1.9.22'
         dst_ip = '8.8.8.8'
         ipProtocol = 'tcp'
