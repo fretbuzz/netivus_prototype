@@ -323,8 +323,8 @@ if __name__ == "__main__":
         type_of_problem = 'Connecitivity_Blocked_But_Should_Be_Allowed'
         src_ip = "62.5.3.226"
         dst_ip = "10.3.3.128"
-        src_port = "20"
-        dst_port = "20"
+        srcPort = "20"
+        dstPort = "20"
         ipProtocol = 'tcp'
         start_location = 'asa[Outside]'
         end_location = 'asa[Inside]'
