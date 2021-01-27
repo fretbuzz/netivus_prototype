@@ -26,4 +26,19 @@ python main.py --netivus_experiment [experiment_name]
 ```
 where experiment_name is associated with the necessary parameters in main.py 
 
+NOTE: double check that your experiment_name has these parameters defined (some experiments are missing all these, b/c of legacy reasons):
+* NETWORK_NAME
+* SNAPSHOT_NAME
+* SNAPSHOT_PATH
+* type_of_problem
+* src_ip
+* dst_ip
+* srcPort
+* dstPort
+* ipProtocol,
+* start_location
+* end_location
+* desired_path (can be none)
+* problematic_path (can be none)
+
 Note: You may want to use a debugger with good Pandas support so you can see the errors better (e.g., pycharm)

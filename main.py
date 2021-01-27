@@ -316,7 +316,6 @@ if __name__ == "__main__":
         src_ip = '192.168.100.254'
 
     elif args.netivus_experiment == "problem_with_cisco_asa_nat":
-        pass
         NETWORK_NAME = "problem_with_cisco_asa_nat"
         SNAPSHOT_NAME = "problem_with_cisco_asa_nat"
         SNAPSHOT_PATH = "./scenarios/Problem with Cisco ASA 5512 NAT Configuration"
