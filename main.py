@@ -353,9 +353,14 @@ if __name__ == "__main__":
         NETWORK_NAME = "private_lan_cannot_access_internet"
         SNAPSHOT_NAME = "private_lan_cannot_access_internet"
         SNAPSHOT_PATH = "./scenarios/Cisco 1921 private LAN can't access internet on WAN interface"
-        start_location = 'cisco-1-c[GigabitEthernet0/0]'  # TODO
-        dst_ip = '8.8.8.8'  # TODO
-        src_ip = '10.1.9.22'  # TODO
+        type_of_problem = 'Connecitivity_Blocked_But_Should_Be_Allowed'
+        src_ip = '10.1.9.22'
+        dst_ip = '8.8.8.8'
+        ipProtocol = 'tcp'
+        start_location = 'cisco-1-c[GigabitEthernet0/0]'
+        end_location =  'cisco-1-c[GigabitEthernet0/0/0]'
+        desired_path = None  # Not needed for this type of problem
+        problematic_path = None  # not needed by this system, for any task
 
     elif args.netivus_experiment == "synthetic_base_network":
         NETWORK_NAME = "synthetic_base_network"
