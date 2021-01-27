@@ -185,15 +185,18 @@ if __name__ == "__main__":
         # looks like it doesn't support this type of config files??
         #'''
     elif args.netivus_experiment == 'juniper_uplink_unstable':
-        #'''
         # Juniper SRX240 unstable uplink when client is connected to VPN
         NETWORK_NAME = "example_network_juniper"
         SNAPSHOT_NAME = "example_snapshot_juniper"
         SNAPSHOT_PATH = "./scenarios/Juniper SRX240 unstable uplink when client is connected to VPN withSecondDevice"
-        #'''
-        start_location = '--obscured--[fe-0/0/1]'
-        dst_ip = '8.8.8.8'
+        type_of_problem = 'Connecitivity_Blocked_But_Should_Be_Allowed'
         src_ip = '192.168.2.22'
+        dst_ip = '8.8.8.8'
+        ipProtocol = 'tcp'
+        start_location = '--obscured--[fe-0/0/1]'
+        end_location =   '--obscured--[fe-0/0/0]'
+        desired_path = None  # Not needed for this type of problem
+        problematic_path = None  # not needed by this system, for any t
     elif args.netivus_experiment == 'cisco_asa_doesnt_allow_internet':
         #'''
         # ???
