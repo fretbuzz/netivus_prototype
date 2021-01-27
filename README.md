@@ -28,7 +28,7 @@ python main.py --netivus_experiment [experiment_name]
 ```
 where experiment_name is associated with the necessary parameters in main.py. For instance, try experiment names
 synthetic_explicit_acl_drop_packets_forward or problem_with_cisco_asa_nat or Juniper_SRX240_and_EX2200_network
-or Juniper SRX240 unstable uplink when client is connected to VPN
+or private_lan_cannot_access_internet (see the technical case studies google doc for the corresponding NESE post)
 
 NOTE: double check that your experiment_name has these parameters defined (some experiments are missing all these, b/c of legacy reasons):
 * NETWORK_NAME
