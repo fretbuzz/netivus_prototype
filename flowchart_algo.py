@@ -16,6 +16,7 @@ import subprocess
 def debug_network_problem(start_location, end_location, dst_ip, src_ip, protocol, desired_path, type_of_problem,
                           intermediate_scenario_directory, srcPort, dstPort, ipProtocol, NETWORK_NAME, SNAPSHOT_NAME, DEBUG,
                           return_after_recreation):
+    return_after_recreation = True # remove after testing
     given_desired_path = False
     if desired_path:
         given_desired_path = True
