@@ -164,10 +164,15 @@ if __name__ == "__main__":
         NETWORK_NAME = "example_network_correct"
         SNAPSHOT_NAME = "example_snapshot_correct"
         SNAPSHOT_PATH = "./scenarios/Access Port Config Correct"
-        start_location = 'abc-3850parts[GigabitEthernet1/1/2]'
-        dst_ip = '10.10.20.8'
+        type_of_problem = 'Connecitivity_Blocked_But_Should_Be_Allowed'
         src_ip = '10.10.20.60'
-        #'''
+        dst_ip = '10.10.20.8'
+        ipProtocol = 'tcp'
+        start_location = 'abc-3850parts[GigabitEthernet1/1/2]'
+        end_location = "voip_server"
+        desired_path = None  # Not needed for this type of problem
+        problematic_path = None  # not needed by this system, for any task
+
     elif args.netivus_experiment == 'inter-vlan':
         '''
         # Another example that works
